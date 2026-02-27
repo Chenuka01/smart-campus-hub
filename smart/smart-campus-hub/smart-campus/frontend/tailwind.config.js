@@ -1,17 +1,57 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-    darkMode: ["class"],
-    content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
+  darkMode: ["class"],
+  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
-  	extend: {
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
-  		colors: {}
-  	}
+    extend: {
+      fontFamily: {
+        sans: ['Outfit', 'system-ui', '-apple-system', 'sans-serif'],
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+        '2xl': '1rem',
+        '3xl': '1.5rem',
+      },
+      colors: {},
+      animation: {
+        'float': 'float 6s ease-in-out infinite',
+        'float-slow': 'float-slow 8s ease-in-out infinite',
+        'float-blob': 'float-blob 20s ease-in-out infinite',
+        'breathing': 'breathing 3s ease-in-out infinite',
+        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        'shimmer': 'shimmer 3s ease-in-out infinite',
+        'shimmer-border': 'shimmer-border 3s ease-in-out infinite',
+        'gradient': 'gradient-shift 6s ease infinite',
+        'rotate-slow': 'rotate-slow 20s linear infinite',
+        'iridescent': 'iridescent 8s linear infinite',
+        'slide-in': 'slide-in-right 0.5s ease-out',
+        'count-up': 'count-up 0.6s ease-out',
+      },
+      backdropBlur: {
+        xs: '2px',
+        '2xl': '40px',
+        '3xl': '64px',
+      },
+      boxShadow: {
+        'glass': '0 8px 32px rgba(0, 0, 0, 0.4)',
+        'glass-hover': '0 16px 48px rgba(0, 0, 0, 0.5)',
+        'glass-lg': '0 24px 64px rgba(0, 0, 0, 0.5)',
+        'glow-violet': '0 0 20px rgba(139, 92, 246, 0.3)',
+        'glow-blue': '0 0 20px rgba(59, 130, 246, 0.3)',
+        'glow-amber': '0 0 20px rgba(245, 158, 11, 0.3)',
+        'glow-rose': '0 0 20px rgba(244, 63, 94, 0.3)',
+        'glow-emerald': '0 0 20px rgba(16, 185, 129, 0.3)',
+        'depth-1': '0 2px 8px rgba(0,0,0,0.3)',
+        'depth-2': '0 8px 24px rgba(0,0,0,0.35)',
+        'depth-3': '0 16px 48px rgba(0,0,0,0.4)',
+        'depth-4': '0 24px 64px rgba(0,0,0,0.5)',
+        'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.1)',
+        'neu-raised': '6px 6px 16px rgba(0,0,0,0.6), -6px -6px 16px rgba(255,255,255,0.07)',
+        'neu-inset': 'inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.04)',
+      },
+    },
   },
   plugins: [import("tailwindcss-animate")],
-}
-
+};

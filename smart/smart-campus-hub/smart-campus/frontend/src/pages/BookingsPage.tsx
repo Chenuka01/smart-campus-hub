@@ -4,16 +4,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { bookingApi } from '@/lib/api';
 import type { Booking } from '@/lib/types';
-import {
-  CalendarDays, Plus, CheckCircle2, XCircle, Clock,
-  Ban, MessageSquare
-} from 'lucide-react';
+import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, MessageSquare } from 'lucide-react';
+import LiquidGlassCard from '@/components/LiquidGlassCard';
+import NeuButton from '@/components/NeuButton';
+import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
 
-const statusConfig: Record<string, { color: string; icon: typeof Clock; bg: string }> = {
-  PENDING: { color: 'text-amber-700', icon: Clock, bg: 'bg-amber-50 border-amber-200' },
-  APPROVED: { color: 'text-emerald-700', icon: CheckCircle2, bg: 'bg-emerald-50 border-emerald-200' },
-  REJECTED: { color: 'text-rose-700', icon: XCircle, bg: 'bg-rose-50 border-rose-200' },
-  CANCELLED: { color: 'text-slate-600', icon: Ban, bg: 'bg-slate-50 border-slate-200' },
+const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock; glassColor: string; glow: string }> = {
+  PENDING: { label: 'Pending', color: 'text-amber-300', icon: Clock, glassColor: 'rgba(245,158,11,0.15)', glow: 'rgba(245,158,11,0.3)' },
+  APPROVED: { label: 'Approved', color: 'text-emerald-300', icon: CheckCircle2, glassColor: 'rgba(16,185,129,0.15)', glow: 'rgba(16,185,129,0.3)' },
+  REJECTED: { label: 'Rejected', color: 'text-rose-300', icon: XCircle, glassColor: 'rgba(244,63,94,0.15)', glow: 'rgba(244,63,94,0.3)' },
+  CANCELLED: { label: 'Cancelled', color: 'text-slate-400', icon: Ban, glassColor: 'rgba(148,163,184,0.1)', glow: 'rgba(148,163,184,0.2)' },
 };
 
 export default function BookingsPage() {
@@ -25,188 +25,217 @@ export default function BookingsPage() {
   const [reason, setReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchBookings();
-  }, [isAdmin]);
+  useEffect(() => { fetchBookings(); }, [isAdmin]);
 
   const fetchBookings = async () => {
     try {
       const res = isAdmin ? await bookingApi.getAll() : await bookingApi.getMy();
       setBookings(res.data);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ } finally { setLoading(false); }
   };
 
   const handleAction = async () => {
     if (!actionModal) return;
     setActionLoading(true);
     try {
-      if (actionModal.action === 'approve') {
-        await bookingApi.approve(actionModal.id);
-      } else if (actionModal.action === 'reject') {
-        await bookingApi.reject(actionModal.id, reason);
-      } else if (actionModal.action === 'cancel') {
-        await bookingApi.cancel(actionModal.id, reason);
-      }
+      if (actionModal.action === 'approve') await bookingApi.approve(actionModal.id);
+      else if (actionModal.action === 'reject') await bookingApi.reject(actionModal.id, reason);
+      else if (actionModal.action === 'cancel') await bookingApi.cancel(actionModal.id, reason);
       setActionModal(null);
       setReason('');
       fetchBookings();
-    } catch {
-      alert('Action failed');
-    } finally {
-      setActionLoading(false);
-    }
+    } catch { alert('Action failed'); } finally { setActionLoading(false); }
   };
 
   const filtered = bookings.filter(b => !filter || b.status === filter);
+  const filterTabs = ['', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+        <p className="text-sm text-slate-500 animate-pulse">Loading bookings…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
+      {/* Header */}
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Bookings</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            <span className="text-gradient">Bookings</span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
             {isAdmin ? 'Manage all facility bookings' : 'View and manage your bookings'}
           </p>
         </div>
-        <Link to="/bookings/new"
-          className="inline-flex items-center gap-2 px-5 py-2.5 gradient-primary text-white font-medium rounded-xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all">
-          <Plus className="w-4 h-4" /> New Booking
+        <Link to="/bookings/new">
+          <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+            New Booking
+          </NeuButton>
         </Link>
-      </div>
+      </motion.div>
 
-      {/* Status Filter */}
-      <div className="flex flex-wrap gap-2">
-        {['', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map(s => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${
-              filter === s
-                ? 'gradient-primary text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}>
-            {s || 'All'} {s && `(${bookings.filter(b => b.status === s).length})`}
-          </button>
-        ))}
-      </div>
+      {/* Status Filter Tabs */}
+      <motion.div variants={itemVariants} className="flex flex-wrap gap-2">
+        {filterTabs.map(s => {
+          const count = s ? bookings.filter(b => b.status === s).length : bookings.length;
+          const cfg = s ? statusConfig[s] : null;
+          return (
+            <motion.button
+              key={s}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setFilter(s)}
+              className="px-4 py-2 text-sm font-semibold rounded-xl transition-all"
+              style={filter === s ? {
+                background: s ? statusConfig[s]?.glassColor : 'rgba(139,92,246,0.2)',
+                border: `1px solid ${s ? statusConfig[s]?.glow : 'rgba(139,92,246,0.4)'}`,
+                color: s ? statusConfig[s]?.color : '#a78bfa',
+                boxShadow: s ? `0 0 12px ${statusConfig[s]?.glow}` : '0 0 12px rgba(139,92,246,0.2)',
+              } : {
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                color: '#64748b',
+              }}
+            >
+              {cfg && <cfg.icon className={`inline w-3.5 h-3.5 mr-1.5 ${cfg.color}`} />}
+              {s || 'All'} <span className="opacity-60 ml-1">({count})</span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
 
       {/* Bookings List */}
-      <div className="space-y-4">
-        {filtered.map((booking, index) => {
-          const config = statusConfig[booking.status] || statusConfig.PENDING;
-          const Icon = config.icon;
+      <div className="space-y-3">
+        {filtered.map((booking, i) => {
+          const cfg = statusConfig[booking.status] || statusConfig.PENDING;
+          const Icon = cfg.icon;
           return (
             <motion.div
               key={booking.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03 }}
-              className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-all"
+              custom={i}
+              variants={scrollRevealVariants}
+              initial="hidden"
+              animate="visible"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className={`w-12 h-12 rounded-xl ${config.bg} border flex items-center justify-center`}>
-                    <Icon className={`w-5 h-5 ${config.color}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-slate-900">{booking.facilityName}</h3>
-                    <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <CalendarDays className="w-3.5 h-3.5" /> {booking.date}
-                      </span>
-                      <span>{booking.startTime} - {booking.endTime}</span>
-                      {isAdmin && <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">by {booking.userName}</span>}
+              <LiquidGlassCard depth={2} className="overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-start gap-4 flex-1">
+                    <div
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: cfg.glassColor, border: `1px solid ${cfg.glow}`, boxShadow: `0 0 12px ${cfg.glow}` }}
+                    >
+                      <Icon className={`w-5 h-5 ${cfg.color}`} />
                     </div>
-                    <p className="text-sm text-slate-600 mt-1">{booking.purpose}</p>
-                    {booking.rejectionReason && (
-                      <p className="text-sm text-rose-600 mt-1 flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5" /> {booking.rejectionReason}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-white">{booking.facilityName}</h3>
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500 font-medium">
+                        <span className="flex items-center gap-1">
+                          <CalendarDays className="w-3 h-3" /> {booking.date}
+                        </span>
+                        <span>{booking.startTime} – {booking.endTime}</span>
+                        {isAdmin && (
+                          <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-400" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            by {booking.userName}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">{booking.purpose}</p>
+                      {booking.rejectionReason && (
+                        <p className="text-xs text-rose-400 mt-1.5 flex items-center gap-1.5 font-medium">
+                          <MessageSquare className="w-3 h-3" /> {booking.rejectionReason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    <span
+                      className={`px-3 py-1.5 text-xs font-bold rounded-full ${cfg.color}`}
+                      style={{ background: cfg.glassColor, border: `1px solid ${cfg.glow}` }}
+                    >
+                      {cfg.label}
+                    </span>
+                    {isAdmin && booking.status === 'PENDING' && (
+                      <div className="flex gap-2">
+                        <NeuButton size="sm" variant="success" onClick={() => setActionModal({ id: booking.id, action: 'approve' })}>Approve</NeuButton>
+                        <NeuButton size="sm" variant="danger" onClick={() => setActionModal({ id: booking.id, action: 'reject' })}>Reject</NeuButton>
+                      </div>
+                    )}
+                    {booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
+                      <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel</NeuButton>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${config.bg} border ${config.color}`}>
-                    {booking.status}
-                  </span>
-                  {isAdmin && booking.status === 'PENDING' && (
-                    <div className="flex gap-2">
-                      <button onClick={() => setActionModal({ id: booking.id, action: 'approve' })}
-                        className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-lg hover:bg-emerald-100 transition-all border border-emerald-200">
-                        Approve
-                      </button>
-                      <button onClick={() => setActionModal({ id: booking.id, action: 'reject' })}
-                        className="px-3 py-1.5 bg-rose-50 text-rose-700 text-xs font-medium rounded-lg hover:bg-rose-100 transition-all border border-rose-200">
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                  {booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
-                    <button onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}
-                      className="px-3 py-1.5 bg-slate-50 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-100 transition-all border border-slate-200">
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
+              </LiquidGlassCard>
             </motion.div>
           );
         })}
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-16">
-          <CalendarDays className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">No bookings found</p>
+        <div className="text-center py-20">
+          <CalendarDays className="w-12 h-12 mx-auto mb-3 text-slate-700" />
+          <p className="text-slate-400 font-semibold">No bookings found</p>
         </div>
       )}
 
       {/* Action Modal */}
       <AnimatePresence>
         {actionModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setActionModal(null)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-slate-900 mb-4 capitalize">{actionModal.action} Booking</h3>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setActionModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl p-6"
+              style={{
+                background: 'rgba(20, 10, 50, 0.95)',
+                backdropFilter: 'blur(24px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+              }}
+            >
+              <h3 className="text-xl font-bold text-white mb-5 capitalize">{actionModal.action} Booking</h3>
               {(actionModal.action === 'reject' || actionModal.action === 'cancel') && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Reason</label>
-                  <textarea value={reason} onChange={e => setReason(e.target.value)}
-                    rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    placeholder={`Reason for ${actionModal.action}...`} />
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Reason</label>
+                  <textarea
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    rows={3}
+                    className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
+                    placeholder={`Reason for ${actionModal.action}…`}
+                  />
                 </div>
               )}
               {actionModal.action === 'approve' && (
-                <p className="text-slate-600 mb-4">Are you sure you want to approve this booking?</p>
+                <p className="text-slate-400 text-sm mb-5">Are you sure you want to approve this booking?</p>
               )}
               <div className="flex gap-3">
-                <button onClick={handleAction} disabled={actionLoading}
-                  className={`flex-1 py-2.5 font-medium rounded-xl text-white transition-all disabled:opacity-50 ${
-                    actionModal.action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' :
-                    actionModal.action === 'reject' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-600 hover:bg-slate-700'
-                  }`}>
-                  {actionLoading ? 'Processing...' : `${actionModal.action.charAt(0).toUpperCase() + actionModal.action.slice(1)}`}
-                </button>
-                <button onClick={() => setActionModal(null)}
-                  className="px-6 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-all">
-                  Cancel
-                </button>
+                <NeuButton
+                  onClick={handleAction}
+                  loading={actionLoading}
+                  variant={actionModal.action === 'approve' ? 'success' : actionModal.action === 'reject' ? 'danger' : 'secondary'}
+                  fullWidth
+                >
+                  {actionModal.action.charAt(0).toUpperCase() + actionModal.action.slice(1)}
+                </NeuButton>
+                <NeuButton onClick={() => setActionModal(null)} variant="ghost">Cancel</NeuButton>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

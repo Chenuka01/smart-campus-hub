@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { facilityApi } from '@/lib/api';
-import { ArrowLeft, Save, Plus, X } from 'lucide-react';
+import { ArrowLeft, Save, Plus, X, Building2 } from 'lucide-react';
+import LiquidGlassCard from '@/components/LiquidGlassCard';
+import NeuButton from '@/components/NeuButton';
+import { itemVariants } from '@/lib/animations';
 
-const facilityTypes = [
-  'LECTURE_HALL', 'LAB', 'MEETING_ROOM', 'AUDITORIUM',
-  'PROJECTOR', 'CAMERA', 'LAPTOP', 'WHITEBOARD', 'OTHER_EQUIPMENT'
-];
+const facilityTypes = ['LECTURE_HALL', 'LAB', 'MEETING_ROOM', 'AUDITORIUM', 'PROJECTOR', 'CAMERA', 'LAPTOP', 'WHITEBOARD', 'OTHER_EQUIPMENT'];
 
 export default function FacilityFormPage() {
   const { id } = useParams();
@@ -16,7 +16,6 @@ export default function FacilityFormPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newAmenity, setNewAmenity] = useState('');
-
   const [form, setForm] = useState({
     name: '', type: 'LECTURE_HALL', capacity: 0, location: '',
     building: '', floor: '', description: '', status: 'ACTIVE',
@@ -51,17 +50,9 @@ export default function FacilityFormPage() {
           { dayOfWeek: 'FRIDAY', startTime: '08:00', endTime: '18:00' },
         ],
       };
-      if (isEdit) {
-        await facilityApi.update(id!, data);
-      } else {
-        await facilityApi.create(data);
-      }
+      if (isEdit) await facilityApi.update(id!, data); else await facilityApi.create(data);
       navigate('/facilities');
-    } catch {
-      alert('Failed to save facility');
-    } finally {
-      setSaving(false);
-    }
+    } catch { alert('Failed to save facility'); } finally { setSaving(false); }
   };
 
   const addAmenity = () => {
@@ -71,110 +62,120 @@ export default function FacilityFormPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+    </div>
+  );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-6">
+    <motion.div variants={itemVariants} initial="hidden" animate="visible" className="max-w-2xl mx-auto pb-8">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-300 mb-6 transition-colors font-medium">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-6">
-          {isEdit ? 'Edit Facility' : 'Add New Facility'}
-        </h1>
+      <LiquidGlassCard depth={3}>
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center flex-shrink-0"
+            style={{ boxShadow: '0 0 16px rgba(139,92,246,0.4)' }}>
+            <Building2 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{isEdit ? 'Edit Facility' : 'Add New Facility'}</h1>
+            <p className="text-sm text-slate-400 mt-0.5">{isEdit ? 'Update facility information' : 'Create a new campus resource'}</p>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Name *</label>
               <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+                className="glass-input w-full px-4 py-3 rounded-xl text-sm" placeholder="e.g. Engineering Lab A" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Type *</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Type *</label>
               <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500">
+                className="glass-select w-full px-4 py-3 rounded-xl text-sm">
                 {facilityTypes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Capacity</label>
-              <input type="number" value={form.capacity} onChange={e => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" min="0" />
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Capacity</label>
+              <input type="number" value={form.capacity} min="0"
+                onChange={e => setForm({ ...form, capacity: parseInt(e.target.value) || 0 })}
+                className="glass-input w-full px-4 py-3 rounded-xl text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Location *</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Location *</label>
               <input type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+                className="glass-input w-full px-4 py-3 rounded-xl text-sm" placeholder="e.g. Block A" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Building</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Building</label>
               <input type="text" value={form.building} onChange={e => setForm({ ...form, building: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                className="glass-input w-full px-4 py-3 rounded-xl text-sm" placeholder="Building name" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Floor</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Floor</label>
               <input type="text" value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                className="glass-input w-full px-4 py-3 rounded-xl text-sm" placeholder="e.g. 2nd Floor" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Status</label>
               <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500">
+                className="glass-select w-full px-4 py-3 rounded-xl text-sm">
                 <option value="ACTIVE">Active</option>
                 <option value="OUT_OF_SERVICE">Out of Service</option>
                 <option value="UNDER_MAINTENANCE">Under Maintenance</option>
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
+                placeholder="Brief description of this facility…" />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Amenities</label>
-              <div className="flex gap-2 mb-2">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Amenities</label>
+              <div className="flex gap-2 mb-3">
                 <input type="text" value={newAmenity} onChange={e => setNewAmenity(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-                  placeholder="Add amenity..." className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm" />
-                <button type="button" onClick={addAmenity}
-                  className="px-3 py-2 bg-violet-50 text-violet-600 rounded-xl hover:bg-violet-100 transition-all">
+                  placeholder="Add amenity and press Enter…"
+                  className="glass-input flex-1 px-4 py-2.5 rounded-xl text-sm" />
+                <motion.button type="button" onClick={addAmenity}
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  className="p-2.5 rounded-xl text-violet-400 hover:text-violet-300 transition-colors"
+                  style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)' }}>
                   <Plus className="w-4 h-4" />
-                </button>
+                </motion.button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {form.amenities.map(a => (
-                  <span key={a} className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 text-sm rounded-lg">
-                    {a}
-                    <button type="button" onClick={() => setForm({ ...form, amenities: form.amenities.filter(x => x !== a) })}>
-                      <X className="w-3 h-3 text-slate-400 hover:text-slate-600" />
-                    </button>
-                  </span>
-                ))}
-              </div>
+              {form.amenities.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {form.amenities.map(a => (
+                    <motion.span key={a} layout initial={{ scale: 0 }} animate={{ scale: 1 }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-xl text-slate-300"
+                      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {a}
+                      <button type="button" onClick={() => setForm({ ...form, amenities: form.amenities.filter(x => x !== a) })}
+                        className="text-slate-500 hover:text-rose-400 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <button type="submit" disabled={saving}
-              className="flex-1 py-3 gradient-primary text-white font-semibold rounded-xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> :
-                <><Save className="w-4 h-4" /> {isEdit ? 'Update' : 'Create'} Facility</>}
-            </button>
-            <button type="button" onClick={() => navigate(-1)}
-              className="px-6 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-all">
-              Cancel
-            </button>
+          <div className="flex gap-3 pt-2">
+            <NeuButton type="submit" loading={saving} variant="primary" fullWidth icon={<Save className="w-4 h-4" />} iconPosition="left">
+              {isEdit ? 'Update' : 'Create'} Facility
+            </NeuButton>
+            <NeuButton type="button" onClick={() => navigate(-1)} variant="ghost">Cancel</NeuButton>
           </div>
         </form>
-      </div>
+      </LiquidGlassCard>
     </motion.div>
   );
 }

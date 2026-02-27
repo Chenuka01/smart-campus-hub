@@ -4,24 +4,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi, authApi } from '@/lib/api';
 import type { Ticket, User } from '@/lib/types';
-import {
-  Ticket as TicketIcon, Plus, AlertTriangle,
-  Activity, User as UserIcon, ArrowRight
-} from 'lucide-react';
+import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, ArrowRight } from 'lucide-react';
+import LiquidGlassCard from '@/components/LiquidGlassCard';
+import NeuButton from '@/components/NeuButton';
+import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
 
-const priorityConfig: Record<string, { color: string; bg: string }> = {
-  CRITICAL: { color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
-  HIGH: { color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
-  MEDIUM: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
-  LOW: { color: 'text-slate-600', bg: 'bg-slate-50 border-slate-200' },
+const priorityConfig: Record<string, { color: string; glow: string; glassColor: string; pulse: boolean }> = {
+  CRITICAL: { color: 'text-rose-300', glow: 'rgba(244,63,94,0.5)', glassColor: 'rgba(244,63,94,0.15)', pulse: true },
+  HIGH: { color: 'text-orange-300', glow: 'rgba(249,115,22,0.4)', glassColor: 'rgba(249,115,22,0.12)', pulse: true },
+  MEDIUM: { color: 'text-amber-300', glow: 'rgba(245,158,11,0.3)', glassColor: 'rgba(245,158,11,0.1)', pulse: false },
+  LOW: { color: 'text-slate-400', glow: 'rgba(148,163,184,0.2)', glassColor: 'rgba(148,163,184,0.08)', pulse: false },
 };
 
-const statusConfig: Record<string, { color: string; bg: string }> = {
-  OPEN: { color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-  IN_PROGRESS: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
-  RESOLVED: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-  CLOSED: { color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200' },
-  REJECTED: { color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+const statusConfig: Record<string, { color: string; glassColor: string; glow: string }> = {
+  OPEN: { color: 'text-blue-300', glassColor: 'rgba(59,130,246,0.15)', glow: 'rgba(59,130,246,0.3)' },
+  IN_PROGRESS: { color: 'text-amber-300', glassColor: 'rgba(245,158,11,0.15)', glow: 'rgba(245,158,11,0.3)' },
+  RESOLVED: { color: 'text-emerald-300', glassColor: 'rgba(16,185,129,0.15)', glow: 'rgba(16,185,129,0.3)' },
+  CLOSED: { color: 'text-slate-400', glassColor: 'rgba(148,163,184,0.1)', glow: 'rgba(148,163,184,0.2)' },
+  REJECTED: { color: 'text-rose-300', glassColor: 'rgba(244,63,94,0.15)', glow: 'rgba(244,63,94,0.3)' },
+};
+
+const glassModal = {
+  background: 'rgba(20, 10, 50, 0.95)',
+  backdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
 };
 
 export default function TicketsPage() {
@@ -40,27 +47,14 @@ export default function TicketsPage() {
 
   useEffect(() => {
     fetchTickets();
-    if (isAdmin) {
-      authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
-    }
+    if (isAdmin) authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
   }, [isAdmin, isTechnician]);
 
   const fetchTickets = async () => {
     try {
-      let res;
-      if (isAdmin) {
-        res = await ticketApi.getAll();
-      } else if (isTechnician) {
-        res = await ticketApi.getAssigned();
-      } else {
-        res = await ticketApi.getMy();
-      }
+      const res = isAdmin ? await ticketApi.getAll() : isTechnician ? await ticketApi.getAssigned() : await ticketApi.getMy();
       setTickets(res.data);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ } finally { setLoading(false); }
   };
 
   const handleAssign = async () => {
@@ -69,14 +63,8 @@ export default function TicketsPage() {
     try {
       const tech = users.find(u => u.id === selectedTech);
       await ticketApi.assign(assignModal, selectedTech, tech?.name || 'Technician');
-      setAssignModal(null);
-      setSelectedTech('');
-      fetchTickets();
-    } catch {
-      alert('Failed to assign ticket');
-    } finally {
-      setActionLoading(false);
-    }
+      setAssignModal(null); setSelectedTech(''); fetchTickets();
+    } catch { alert('Failed to assign'); } finally { setActionLoading(false); }
   };
 
   const handleStatusUpdate = async () => {
@@ -84,134 +72,145 @@ export default function TicketsPage() {
     setActionLoading(true);
     try {
       await ticketApi.updateStatus(statusModal.id, newStatus, resolutionNotes, rejectionReason);
-      setStatusModal(null);
-      setNewStatus('');
-      setResolutionNotes('');
-      setRejectionReason('');
-      fetchTickets();
-    } catch {
-      alert('Failed to update status');
-    } finally {
-      setActionLoading(false);
-    }
+      setStatusModal(null); setNewStatus(''); setResolutionNotes(''); setRejectionReason(''); fetchTickets();
+    } catch { alert('Failed to update'); } finally { setActionLoading(false); }
   };
 
   const filtered = tickets.filter(t => !filter || t.status === filter);
   const technicians = users.filter(u => u.roles?.includes('TECHNICIAN') || u.roles?.includes('ADMIN'));
+  const filterTabs = ['', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+        <p className="text-sm text-slate-500 animate-pulse">Loading tickets…</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Maintenance Tickets</h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            Maintenance <span className="text-gradient">Tickets</span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
             {isAdmin ? 'Manage all maintenance tickets' : isTechnician ? 'Your assigned tickets' : 'Report and track issues'}
           </p>
         </div>
-        <Link to="/tickets/new"
-          className="inline-flex items-center gap-2 px-5 py-2.5 gradient-primary text-white font-medium rounded-xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all">
-          <Plus className="w-4 h-4" /> New Ticket
+        <Link to="/tickets/new">
+          <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+            New Ticket
+          </NeuButton>
         </Link>
-      </div>
+      </motion.div>
 
-      {/* Status Filter */}
-      <div className="flex flex-wrap gap-2">
-        {['', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'].map(s => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${
-              filter === s
-                ? 'gradient-primary text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}>
-            {s ? s.replace('_', ' ') : 'All'} {s && `(${tickets.filter(t => t.status === s).length})`}
-          </button>
-        ))}
-      </div>
+      {/* Filter Tabs */}
+      <motion.div variants={itemVariants} className="flex flex-wrap gap-2">
+        {filterTabs.map(s => {
+          const count = s ? tickets.filter(t => t.status === s).length : tickets.length;
+          const cfg = s ? statusConfig[s] : null;
+          return (
+            <motion.button
+              key={s}
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setFilter(s)}
+              className="px-4 py-2 text-sm font-semibold rounded-xl transition-all"
+              style={filter === s ? {
+                background: cfg ? cfg.glassColor : 'rgba(139,92,246,0.2)',
+                border: `1px solid ${cfg ? cfg.glow : 'rgba(139,92,246,0.4)'}`,
+                color: cfg ? cfg.color.replace('text-', '#').replace('300', '4bf') : '#a78bfa',
+                boxShadow: cfg ? `0 0 12px ${cfg.glow}` : '0 0 12px rgba(139,92,246,0.2)',
+              } : {
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                color: '#64748b',
+              }}
+            >
+              {s ? s.replace('_', ' ') : 'All'} <span className="opacity-50 ml-1">({count})</span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
 
       {/* Tickets List */}
-      <div className="space-y-4">
-        {filtered.map((ticket, index) => {
-          const pConfig = priorityConfig[ticket.priority] || priorityConfig.LOW;
-          const sConfig = statusConfig[ticket.status] || statusConfig.OPEN;
+      <div className="space-y-3">
+        {filtered.map((ticket, i) => {
+          const pCfg = priorityConfig[ticket.priority] || priorityConfig.LOW;
+          const sCfg = statusConfig[ticket.status] || statusConfig.OPEN;
           return (
-            <motion.div
-              key={ticket.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03 }}
-              className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-all"
-            >
-              <div className="flex flex-col gap-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className={`w-10 h-10 rounded-xl ${pConfig.bg} border flex items-center justify-center flex-shrink-0`}>
-                      {ticket.priority === 'CRITICAL' || ticket.priority === 'HIGH' ?
-                        <AlertTriangle className={`w-5 h-5 ${pConfig.color}`} /> :
-                        <Activity className={`w-5 h-5 ${pConfig.color}`} />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link to={`/tickets/${ticket.id}`} className="font-semibold text-slate-900 hover:text-violet-600 transition-colors">
-                          {ticket.title}
-                        </Link>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${pConfig.bg} ${pConfig.color}`}>
-                          {ticket.priority}
-                        </span>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${sConfig.bg} ${sConfig.color}`}>
-                          {ticket.status.replace('_', ' ')}
-                        </span>
+            <motion.div key={ticket.id} custom={i} variants={scrollRevealVariants} initial="hidden" animate="visible">
+              <LiquidGlassCard depth={2}>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      {/* Priority icon with emotional glow */}
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${pCfg.pulse ? 'animate-pulse-glow' : ''}`}
+                        style={{ background: pCfg.glassColor, border: `1px solid ${pCfg.glow}`, boxShadow: `0 0 12px ${pCfg.glow}` }}
+                      >
+                        {ticket.priority === 'CRITICAL' || ticket.priority === 'HIGH'
+                          ? <AlertTriangle className={`w-4.5 h-4.5 ${pCfg.color}`} />
+                          : <Activity className={`w-4.5 h-4.5 ${pCfg.color}`} />
+                        }
                       </div>
-                      <p className="text-sm text-slate-600 mt-1 line-clamp-2">{ticket.description}</p>
-                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
-                        <span>{ticket.category}</span>
-                        <span>{ticket.location}</span>
-                        <span>by {ticket.reportedByName}</span>
-                        {ticket.assignedToName && (
-                          <span className="flex items-center gap-1 text-violet-600">
-                            <UserIcon className="w-3 h-3" /> {ticket.assignedToName}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Link to={`/tickets/${ticket.id}`} className="font-bold text-white hover:text-violet-300 transition-colors text-sm">
+                            {ticket.title}
+                          </Link>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full" style={{ background: pCfg.glassColor, border: `1px solid ${pCfg.glow}`, color: 'white' }}>
+                            {ticket.priority}
                           </span>
-                        )}
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full" style={{ background: sCfg.glassColor, border: `1px solid ${sCfg.glow}`, color: 'white' }}>
+                            {ticket.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{ticket.description}</p>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 font-medium">
+                          <span>{ticket.category}</span>
+                          <span>·</span>
+                          <span>{ticket.location}</span>
+                          <span>·</span>
+                          <span>by {ticket.reportedByName}</span>
+                          {ticket.assignedToName && (
+                            <span className="flex items-center gap-1 text-violet-400">
+                              <UserIcon className="w-3 h-3" /> {ticket.assignedToName}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Link to={`/tickets/${ticket.id}`}
-                      className="px-3 py-1.5 bg-slate-50 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-100 transition-all border border-slate-200 flex items-center gap-1">
-                      View <ArrowRight className="w-3 h-3" />
-                    </Link>
-                    {isAdmin && !ticket.assignedTo && ticket.status === 'OPEN' && (
-                      <button onClick={() => setAssignModal(ticket.id)}
-                        className="px-3 py-1.5 bg-violet-50 text-violet-700 text-xs font-medium rounded-lg hover:bg-violet-100 transition-all border border-violet-200">
-                        Assign
-                      </button>
-                    )}
-                    {(isAdmin || isTechnician) && ['OPEN', 'IN_PROGRESS'].includes(ticket.status) && (
-                      <button onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }}
-                        className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-100 transition-all border border-amber-200">
-                        Update
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      <Link to={`/tickets/${ticket.id}`}>
+                        <NeuButton size="sm" variant="secondary" icon={<ArrowRight className="w-3 h-3" />} iconPosition="right">
+                          View
+                        </NeuButton>
+                      </Link>
+                      {isAdmin && !ticket.assignedTo && ticket.status === 'OPEN' && (
+                        <NeuButton size="sm" variant="ghost" onClick={() => setAssignModal(ticket.id)}>Assign</NeuButton>
+                      )}
+                      {(isAdmin || isTechnician) && ['OPEN', 'IN_PROGRESS'].includes(ticket.status) && (
+                        <NeuButton size="sm" variant="ghost" onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }}>
+                          Update
+                        </NeuButton>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </LiquidGlassCard>
             </motion.div>
           );
         })}
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-16">
-          <TicketIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">No tickets found</p>
+        <div className="text-center py-20">
+          <TicketIcon className="w-12 h-12 mx-auto mb-3 text-slate-700" />
+          <p className="text-slate-400 font-semibold">No tickets found</p>
         </div>
       )}
 
@@ -219,39 +218,40 @@ export default function TicketsPage() {
       <AnimatePresence>
         {assignModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setAssignModal(null)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Assign Technician</h3>
-              <select value={selectedTech} onChange={e => setSelectedTech(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4">
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setAssignModal(null)}>
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+              className="w-full max-w-md rounded-3xl p-6" style={glassModal}
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-xl font-bold text-white mb-5">Assign Technician</h3>
+              <select value={selectedTech} onChange={e => setSelectedTech(e.target.value)} className="glass-select w-full px-4 py-3 rounded-xl text-sm mb-5">
                 <option value="">Select technician</option>
                 {technicians.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
               </select>
               <div className="flex gap-3">
-                <button onClick={handleAssign} disabled={!selectedTech || actionLoading}
-                  className="flex-1 py-2.5 gradient-primary text-white font-medium rounded-xl disabled:opacity-50">
-                  {actionLoading ? 'Assigning...' : 'Assign'}
-                </button>
-                <button onClick={() => setAssignModal(null)} className="px-6 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl">
-                  Cancel
-                </button>
+                <NeuButton onClick={handleAssign} loading={actionLoading} disabled={!selectedTech} variant="primary" fullWidth>Assign</NeuButton>
+                <NeuButton onClick={() => setAssignModal(null)} variant="ghost">Cancel</NeuButton>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Status Update Modal */}
+      {/* Status Modal */}
       <AnimatePresence>
         {statusModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setStatusModal(null)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Update Ticket Status</h3>
-              <select value={newStatus} onChange={e => setNewStatus(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4">
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setStatusModal(null)}>
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+              className="w-full max-w-md rounded-3xl p-6" style={glassModal}
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-xl font-bold text-white mb-5">Update Ticket Status</h3>
+              <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="glass-select w-full px-4 py-3 rounded-xl text-sm mb-5">
                 <option value="">Select new status</option>
                 {statusModal.currentStatus === 'OPEN' && <option value="IN_PROGRESS">In Progress</option>}
                 {['OPEN', 'IN_PROGRESS'].includes(statusModal.currentStatus) && <option value="RESOLVED">Resolved</option>}
@@ -260,27 +260,22 @@ export default function TicketsPage() {
               </select>
               {newStatus === 'RESOLVED' && (
                 <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
-                  rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4"
-                  placeholder="Resolution notes..." />
+                  rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none mb-5"
+                  placeholder="Resolution notes…" />
               )}
               {newStatus === 'REJECTED' && (
                 <textarea value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
-                  rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 mb-4"
-                  placeholder="Rejection reason..." />
+                  rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none mb-5"
+                  placeholder="Rejection reason…" />
               )}
               <div className="flex gap-3">
-                <button onClick={handleStatusUpdate} disabled={!newStatus || actionLoading}
-                  className="flex-1 py-2.5 gradient-primary text-white font-medium rounded-xl disabled:opacity-50">
-                  {actionLoading ? 'Updating...' : 'Update Status'}
-                </button>
-                <button onClick={() => setStatusModal(null)} className="px-6 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl">
-                  Cancel
-                </button>
+                <NeuButton onClick={handleStatusUpdate} loading={actionLoading} disabled={!newStatus} variant="primary" fullWidth>Update Status</NeuButton>
+                <NeuButton onClick={() => setStatusModal(null)} variant="ghost">Cancel</NeuButton>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
