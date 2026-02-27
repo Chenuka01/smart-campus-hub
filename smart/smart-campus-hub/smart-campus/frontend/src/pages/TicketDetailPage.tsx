@@ -129,6 +129,38 @@ export default function TicketDetailPage() {
               <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
             </div>
 
+            {/* Evidence Attachments */}
+            {ticket.attachmentUrls && ticket.attachmentUrls.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span>📎</span> Evidence Photos ({ticket.attachmentUrls.length})
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {ticket.attachmentUrls.map((url: string, i: number) => (
+                    <motion.a
+                      key={i}
+                      href={`http://localhost:8080${url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      whileHover={{ scale: 1.04 }}
+                      className="relative rounded-xl overflow-hidden block group"
+                      style={{ aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}
+                    >
+                      <img
+                        src={`http://localhost:8080${url}`}
+                        alt={`Attachment ${i + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).parentElement!.style.background = 'rgba(255,255,255,0.05)'; }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Open</span>
+                      </div>
+                    </motion.a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="flex items-center gap-2 text-sm text-slate-400">
                 <MapPin className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
