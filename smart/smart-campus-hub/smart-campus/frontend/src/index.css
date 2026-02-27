@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-slate-200;
+  }
+
+  body {
+    @apply text-slate-100 antialiased;
+    background-color: #0d0221;
+    background-image: 
+      radial-gradient(at 20% 20%, hsla(210, 80%, 55%, 0.3) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsla(260, 80%, 50%, 0.3) 0px, transparent 50%),
+      radial-gradient(at 70% 80%, hsla(320, 80%, 60%, 0.3) 0px, transparent 50%),
+      radial-gradient(at 10% 90%, hsla(190, 80%, 50%, 0.3) 0px, transparent 50%);
+    background-attachment: fixed;
+    animation: gradient-animation 20s ease-in-out infinite;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@keyframes gradient-animation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg;
+  }
+
+  .gradient-primary {
+    @apply bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600;
+  }
+
+  .gradient-accent {
+    @apply bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500;
+  }
+
+  .gradient-success {
+    @apply bg-gradient-to-r from-emerald-500 to-teal-500;
+  }
+
+  .gradient-mesh {
+    background: 
+      radial-gradient(at 40% 20%, hsla(262, 83%, 58%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsla(225, 83%, 58%, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsla(339, 83%, 58%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsla(189, 83%, 58%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(262, 83%, 58%, 0.1) 0px, transparent 50%);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+

@@ -1,0 +1,742 @@
+{
+  "info": {
+    "name": "Smart Campus Operations Hub API",
+    "_postman_id": "smart-campus-hub-2026",
+    "description": "Complete REST API collection for Smart Campus Operations Hub — IT3030 PAF Assignment 2026",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8083/api", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "userToken", "value": "", "type": "string" },
+    { "key": "techToken", "value": "", "type": "string" },
+    { "key": "facilityId", "value": "", "type": "string" },
+    { "key": "bookingId", "value": "", "type": "string" },
+    { "key": "ticketId", "value": "", "type": "string" },
+    { "key": "commentId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Module E – Auth & Authorization",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Student\",\n  \"email\": \"student@test.com\",\n  \"password\": \"password123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Returns JWT token', () => { const r = pm.response.json(); pm.expect(r.token).to.be.a('string'); });",
+              "pm.collectionVariables.set('userToken', pm.response.json().token);"
+            ]}
+          }]
+        },
+        {
+          "name": "Login – Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@smartcampus.com\",\n  \"password\": \"password123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Token returned', () => pm.expect(pm.response.json().token).to.exist);",
+              "pm.collectionVariables.set('adminToken', pm.response.json().token);"
+            ]}
+          }]
+        },
+        {
+          "name": "Login – User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@smartcampus.com\",\n  \"password\": \"password123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('userToken', pm.response.json().token);"
+            ]}
+          }]
+        },
+        {
+          "name": "Login – Technician",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"tech@smartcampus.com\",\n  \"password\": \"password123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('techToken', pm.response.json().token);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Current User (/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/auth/me"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Has id and roles', () => { const r = pm.response.json(); pm.expect(r.id).to.exist; pm.expect(r.roles).to.be.an('array'); });"
+            ]}
+          }]
+        },
+        {
+          "name": "Google OAuth Token Exchange",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/google",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@gmail.com\",\n  \"name\": \"Google Student\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\",\n  \"providerId\": \"google-uid-123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('JWT token returned', () => pm.expect(pm.response.json().token).to.exist);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get All Users (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/auth/users"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get All Users – Unauthorized (non-admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/auth/users"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 403 Forbidden', () => pm.response.to.have.status(403));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Module A – Facilities",
+      "item": [
+        {
+          "name": "Get All Facilities (public)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/facilities"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+              "if (pm.response.json().length > 0) pm.collectionVariables.set('facilityId', pm.response.json()[0].id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Search Facilities by type",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/facilities/search?type=LECTURE_HALL",
+              "query": [{ "key": "type", "value": "LECTURE_HALL" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Results match type', () => { pm.response.json().forEach(f => pm.expect(f.type).to.equal('LECTURE_HALL')); });"
+            ]}
+          }]
+        },
+        {
+          "name": "Search Facilities by minCapacity",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/facilities/search?minCapacity=100",
+              "query": [{ "key": "minCapacity", "value": "100" }]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('All have sufficient capacity', () => { pm.response.json().forEach(f => pm.expect(f.capacity).to.be.gte(100)); });"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Facility by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/facilities/{{facilityId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Has expected id', () => pm.expect(pm.response.json().id).to.equal(pm.collectionVariables.get('facilityId')));"
+            ]}
+          }]
+        },
+        {
+          "name": "Create Facility (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/facilities",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Innovation Lab\",\n  \"type\": \"LAB\",\n  \"capacity\": 30,\n  \"location\": \"Block E, 1st Floor\",\n  \"building\": \"Block E\",\n  \"floor\": \"1st\",\n  \"description\": \"Modern innovation lab with maker equipment\",\n  \"amenities\": [\"3D Printer\", \"Laser Cutter\", \"Workbenches\"],\n  \"imageUrls\": [],\n  \"status\": \"ACTIVE\",\n  \"availabilityWindows\": [\n    { \"dayOfWeek\": \"MONDAY\", \"startTime\": \"09:00\", \"endTime\": \"17:00\" }\n  ]\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Facility has id', () => pm.expect(pm.response.json().id).to.exist);"
+            ]}
+          }]
+        },
+        {
+          "name": "Update Facility (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/facilities/{{facilityId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Lecture Hall A (Renovated)\",\n  \"type\": \"LECTURE_HALL\",\n  \"capacity\": 220,\n  \"location\": \"Block A, Ground Floor\",\n  \"building\": \"Block A\",\n  \"floor\": \"Ground\",\n  \"description\": \"Updated description\",\n  \"amenities\": [\"Projector\", \"Microphone\", \"Air Conditioning\"],\n  \"imageUrls\": [],\n  \"status\": \"ACTIVE\",\n  \"availabilityWindows\": []\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Capacity updated', () => pm.expect(pm.response.json().capacity).to.equal(220));"
+            ]}
+          }]
+        },
+        {
+          "name": "Delete Facility (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/facilities/{{facilityId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Module B – Bookings",
+      "item": [
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/bookings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"facilityId\": \"{{facilityId}}\",\n  \"date\": \"2026-04-15\",\n  \"startTime\": \"09:00\",\n  \"endTime\": \"11:00\",\n  \"purpose\": \"Group study session\",\n  \"expectedAttendees\": 20\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Status is PENDING', () => pm.expect(pm.response.json().status).to.equal('PENDING'));",
+              "pm.collectionVariables.set('bookingId', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Create Booking – Conflict (same slot)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/bookings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"facilityId\": \"{{facilityId}}\",\n  \"date\": \"2026-04-15\",\n  \"startTime\": \"09:30\",\n  \"endTime\": \"10:30\",\n  \"purpose\": \"Conflicting booking\",\n  \"expectedAttendees\": 5\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/bookings/my"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get All Bookings (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/bookings"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Bookings by Facility",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/bookings/facility/{{facilityId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "Approve Booking (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/approve"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Status is APPROVED', () => pm.expect(pm.response.json().status).to.equal('APPROVED'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Schedule conflict\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Status is CANCELLED', () => pm.expect(pm.response.json().status).to.equal('CANCELLED'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Reject Booking (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Facility under maintenance\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Status is REJECTED', () => pm.expect(pm.response.json().status).to.equal('REJECTED'));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Module C – Tickets",
+      "item": [
+        {
+          "name": "Create Ticket (JSON)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/tickets/simple",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Projector not working in Room 101\",\n  \"facilityId\": \"{{facilityId}}\",\n  \"location\": \"Block A, Room 101\",\n  \"category\": \"EQUIPMENT_FAILURE\",\n  \"description\": \"The ceiling projector displays no output after pressing the power button.\",\n  \"priority\": \"HIGH\",\n  \"contactEmail\": \"user@smartcampus.com\",\n  \"contactPhone\": \"0771234567\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Status is OPEN', () => pm.expect(pm.response.json().status).to.equal('OPEN'));",
+              "pm.collectionVariables.set('ticketId', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/tickets/my"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get All Tickets (Admin/Tech)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/tickets"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Ticket by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Has correct id', () => pm.expect(pm.response.json().id).to.equal(pm.collectionVariables.get('ticketId')));"
+            ]}
+          }]
+        },
+        {
+          "name": "Assign Ticket to Technician (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/assign",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"technicianId\": \"tech-1\",\n  \"technicianName\": \"John Technician\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Status is IN_PROGRESS', () => pm.expect(pm.response.json().status).to.equal('IN_PROGRESS'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Update Ticket Status – RESOLVED (Admin/Tech)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{techToken}}" }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RESOLVED\",\n  \"resolutionNotes\": \"Replaced projector lamp. Unit tested and working.\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Status is RESOLVED', () => pm.expect(pm.response.json().status).to.equal('RESOLVED'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Add Comment to Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/comments/ticket/{{ticketId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Issue persists even after reboot. Please escalate.\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Comment has id', () => pm.expect(pm.response.json().id).to.exist);",
+              "pm.collectionVariables.set('commentId', pm.response.json().id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Ticket Comments",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/comments/ticket/{{ticketId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Edit Own Comment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/comments/{{commentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated: Problem still occurs after full power cycle.\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Edited flag is true', () => pm.expect(pm.response.json().edited).to.be.true);"
+            ]}
+          }]
+        },
+        {
+          "name": "Delete Comment (owner)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/comments/{{commentId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "Delete Ticket (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Module D – Notifications",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+              "if (pm.response.json().length > 0) pm.collectionVariables.set('notificationId', pm.response.json()[0].id);"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications/unread"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('All are unread', () => { pm.response.json().forEach(n => pm.expect(n.read).to.be.false); });"
+            ]}
+          }]
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications/count"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Has count field', () => pm.expect(pm.response.json().count).to.be.a('number'));"
+            ]}
+          }]
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Read flag is true', () => pm.expect(pm.response.json().read).to.be.true);"
+            ]}
+          }]
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications/read-all"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+            ]}
+          }]
+        }
+      ]
+    }
+  ]
+}
