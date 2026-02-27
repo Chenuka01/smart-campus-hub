@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
@@ -6,6 +6,30 @@ import { Building2, Mail, Lock, User, Eye, EyeOff, ArrowRight, Sparkles, Zap, Sh
 import AnimatedBackground from '@/components/AnimatedBackground';
 import NeuButton from '@/components/NeuButton';
 import { celebrationVariants, errorShakeVariants } from '@/lib/animations';
+
+// Your Google OAuth Client ID from Google Cloud Console
+// Set this in frontend/.env as VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+// Type declarations for Google Identity Services
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,29 +41,63 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
-  const { login, register, googleLogin } = useAuth();
+  const { login, register, googleLoginWithToken } = useAuth();
   const navigate = useNavigate();
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const handleGoogleLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      // In production: use Google OAuth SDK (window.google.accounts.oauth2)
-      // For demo: simulate with a prompted email (shows the backend endpoint works)
-      const demoEmail = `demo.google+${Date.now()}@gmail.com`;
-      await googleLogin({
-        email: demoEmail,
-        name: 'Demo Google User',
-        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${demoEmail}`,
-        providerId: `google_${Date.now()}`,
+  // Initialize Google Identity Services when the component mounts
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return; // Skip if no Client ID configured
+
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id) return;
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          // response.credential is the Google ID token — send to backend for verification
+          setError('');
+          setLoading(true);
+          try {
+            await googleLoginWithToken(response.credential);
+            setSuccess(true);
+            setTimeout(() => navigate('/dashboard'), 600);
+          } catch {
+            setError('Google sign-in failed. Please try again.');
+            setShakeKey(k => k + 1);
+          } finally {
+            setLoading(false);
+          }
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true,
       });
-      setSuccess(true);
-      setTimeout(() => navigate('/dashboard'), 600);
-    } catch {
-      setError('Google sign-in failed. Please try again.');
-      setShakeKey(k => k + 1);
-    } finally { setLoading(false); }
-  };
+
+      // Render the official Google button into our styled container
+      if (googleBtnRef.current) {
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'filled_black',
+          size: 'large',
+          width: googleBtnRef.current.offsetWidth || 400,
+          shape: 'rectangular',
+          text: 'continue_with',
+        });
+      }
+    };
+
+    // GSI script might still be loading – wait for it
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogle();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, [googleLoginWithToken, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -384,30 +442,35 @@ export default function LoginPage() {
                 <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
               </div>
 
-              {/* Google OAuth Button */}
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                {/* Google G SVG */}
-                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Continue with Google
-              </motion.button>
+              {/* Google OAuth Button — real GSI button rendered by useEffect */}
+              <div className="relative">
+                {GOOGLE_CLIENT_ID ? (
+                  /* GSI renders the official Google button here */
+                  <div
+                    ref={googleBtnRef}
+                    className="w-full overflow-hidden rounded-xl"
+                    style={{ minHeight: '44px' }}
+                    aria-label="Sign in with Google"
+                  />
+                ) : (
+                  /* Fallback when Client ID not configured */
+                  <div
+                    className="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-medium text-slate-400 cursor-not-allowed"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)' }}
+                    title="Set VITE_GOOGLE_CLIENT_ID in frontend/.env to enable Google sign-in"
+                  >
+                    <svg className="w-5 h-5 opacity-50" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Google Sign-In (add VITE_GOOGLE_CLIENT_ID to enable)
+                  </div>
+                )}
+              </div>
             </form>
+
 
             {/* Quick Demo Login */}
             <div className="mt-7 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>

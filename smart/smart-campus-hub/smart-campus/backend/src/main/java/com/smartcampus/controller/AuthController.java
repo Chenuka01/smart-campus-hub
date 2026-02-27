@@ -6,6 +6,7 @@ import com.smartcampus.dto.AuthResponse;
 import com.smartcampus.dto.RegisterRequest;
 import com.smartcampus.model.User;
 import com.smartcampus.service.AuthService;
+import com.smartcampus.service.GoogleTokenVerifier;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,11 @@ import java.util.stream.Collectors;
 public class AuthController {
 
     private final AuthService authService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, GoogleTokenVerifier googleTokenVerifier) {
         this.authService = authService;
+        this.googleTokenVerifier = googleTokenVerifier;
     }
 
     @PostMapping("/register")
@@ -40,6 +43,28 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Real Google OAuth 2.0 endpoint.
+     * Accepts a Google ID token (credential) from Google Identity Services (GSI),
+     * verifies it server-side using Google's tokeninfo API, then issues a SmartCampus JWT.
+     */
+    @PostMapping("/google/verify")
+    public ResponseEntity<AuthResponse> googleVerify(@RequestBody Map<String, String> request) {
+        String idToken = request.get("credential");
+        if (idToken == null || idToken.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        // Server-side verification – DO NOT trust the client
+        GoogleTokenVerifier.GoogleUserInfo userInfo = googleTokenVerifier.verify(idToken);
+        AuthResponse response = authService.googleAuth(
+                userInfo.email, userInfo.name, userInfo.picture, userInfo.sub);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Legacy Google endpoint – accepts pre-parsed user info.
+     * Kept for backwards compatibility.
+     */
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> googleAuth(@RequestBody Map<String, String> request) {
         AuthResponse response = authService.googleAuth(

@@ -35,6 +35,10 @@ export const authApi = {
     api.post('/auth/login', { email, password }),
   register: (name: string, email: string, password: string) =>
     api.post('/auth/register', { name, email, password }),
+  // Real OAuth 2.0: sends Google ID token to backend for server-side verification
+  googleVerify: (credential: string) =>
+    api.post('/auth/google/verify', { credential }),
+  // Legacy: sends pre-parsed user info (kept for compatibility)
   googleAuth: (data: { email: string; name: string; avatarUrl: string; providerId: string }) =>
     api.post('/auth/google', data),
   getMe: () => api.get('/auth/me'),

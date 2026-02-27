@@ -7,6 +7,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   googleLogin: (data: { email: string; name: string; avatarUrl: string; providerId: string }) => Promise<void>;
+  // Real OAuth 2.0: accepts raw Google ID token and verifies server-side
+  googleLoginWithToken: (credential: string) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
   isTechnician: boolean;
@@ -58,6 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authData);
   };
 
+  // Real OAuth 2.0 — sends Google ID token to backend for server-side verification
+  const googleLoginWithToken = async (credential: string) => {
+    const res = await authApi.googleVerify(credential);
+    const authData = res.data;
+    localStorage.setItem('token', authData.token);
+    localStorage.setItem('user', JSON.stringify(authData));
+    setUser(authData);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -69,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, login, register, googleLogin, logout, isAdmin, isTechnician, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, login, register, googleLogin, googleLoginWithToken, logout, isAdmin, isTechnician, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );
