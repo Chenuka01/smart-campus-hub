@@ -264,6 +264,16 @@ export default function Layout({ children }: LayoutProps) {
                     }}
                   >
                     <p className="px-3 py-2 text-xs text-slate-500 truncate font-medium">{user?.email}</p>
+                    
+                    <Link
+                      to="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all font-medium mb-1"
+                    >
+                      <User className="w-4 h-4" />
+                      View Profile
+                    </Link>
+
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-all font-medium"

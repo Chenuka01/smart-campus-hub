@@ -86,6 +86,12 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @PutMapping("/profile")
+    public ResponseEntity<AuthResponse> updateProfile(@AuthenticationPrincipal User user, @RequestBody Map<String, String> request) {
+        AuthResponse response = authService.updateProfile(user.getId(), request.get("name"), request.get("email"));
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getAllUsers() {

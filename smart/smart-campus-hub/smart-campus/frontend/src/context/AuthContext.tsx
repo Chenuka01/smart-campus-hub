@@ -10,6 +10,7 @@ interface AuthContextType {
   // Real OAuth 2.0: accepts raw Google ID token and verifies server-side
   googleLoginWithToken: (credential: string) => Promise<void>;
   logout: () => void;
+  updateUser: (data: AuthResponse) => void;
   isAdmin: boolean;
   isTechnician: boolean;
   isAuthenticated: boolean;
@@ -17,6 +18,14 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthResponse | null>(null);
@@ -75,21 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateUser = (data: AuthResponse) => {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data));
+    setUser(data);
+  };
+
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const isTechnician = user?.roles?.includes('TECHNICIAN') ?? false;
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, login, register, googleLogin, googleLoginWithToken, logout, isAdmin, isTechnician, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, login, register, googleLogin, googleLoginWithToken, logout, updateUser, isAdmin, isTechnician, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 }

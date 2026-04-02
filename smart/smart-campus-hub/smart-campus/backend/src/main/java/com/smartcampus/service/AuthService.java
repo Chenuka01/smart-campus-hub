@@ -72,6 +72,27 @@ public class AuthService {
         return new AuthResponse(token, user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(), roleStrings);
     }
 
+    public AuthResponse updateProfile(String userId, String name, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        if (!user.getEmail().equals(email) && userRepository.existsByEmail(email)) {
+            throw new BadRequestException("Email already taken");
+        }
+
+        user.setName(name);
+        user.setEmail(email);
+        user.setUpdatedAt(LocalDateTime.now());
+        user = userRepository.save(user);
+
+        Set<String> roleStrings = user.getRoles().stream()
+                .map(Enum::name)
+                .collect(Collectors.toSet());
+
+        return new AuthResponse(tokenProvider.generateToken(user.getId(), user.getEmail(), roleStrings), 
+                user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(), roleStrings);
+    }
+
     public AuthResponse googleAuth(String email, String name, String avatarUrl, String providerId) {
         User user = userRepository.findByEmail(email).orElse(null);
 

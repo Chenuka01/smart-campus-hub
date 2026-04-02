@@ -12,6 +12,7 @@ import TicketFormPage from '@/pages/TicketFormPage';
 import TicketDetailPage from '@/pages/TicketDetailPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import AdminPage from '@/pages/AdminPage';
+import ProfilePage from '@/pages/ProfilePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -60,9 +61,11 @@ function AppRoutes() {
         <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetailPage /></ProtectedRoute>} />
         
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-        
+
         <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
