@@ -68,7 +68,7 @@ public class TicketController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
     public ResponseEntity<List<Ticket>> getAllTickets(
             @RequestParam(required = false) String status) {
         if (status != null) {
@@ -83,7 +83,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -92,7 +92,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
     public ResponseEntity<Ticket> updateTicketStatus(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -103,7 +103,7 @@ public class TicketController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse> deleteTicket(@PathVariable String id) {
         ticketService.deleteTicket(id);
         return ResponseEntity.ok(ApiResponse.success("Ticket deleted successfully"));

@@ -13,6 +13,7 @@ import TicketDetailPage from '@/pages/TicketDetailPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import AdminPage from '@/pages/AdminPage';
 import ProfilePage from '@/pages/ProfilePage';
+import TechnicianPage from '@/pages/TechnicianPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
         <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="/technician" element={<ProtectedRoute><TechnicianPage /></ProtectedRoute>} />
         
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 

@@ -18,7 +18,7 @@ const glassTooltipStyle = {
 };
 
 export default function AdminPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -42,7 +42,7 @@ export default function AdminPage() {
       await authApi.updateUserRoles(roleModal.userId, selectedRoles);
       const res = await authApi.getUsers();
       setUsers(res.data); setRoleModal(null);
-    } catch { alert('Failed to update roles'); }
+    } catch { alert('Only Super Admins can update roles'); }
   };
 
   if (!isAdmin) return (
@@ -246,7 +246,9 @@ export default function AdminPage() {
                             {(u.roles || []).map((role: string) => (
                               <span key={role}
                                 className="px-2.5 py-0.5 text-[10px] font-bold rounded-full"
-                                style={role === 'ADMIN'
+                                style={role === 'SUPER_ADMIN'
+                                  ? { background: 'rgba(255,107,107,0.2)', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.3)' }
+                                  : role === 'ADMIN'
                                   ? { background: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }
                                   : role === 'TECHNICIAN'
                                   ? { background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }
@@ -262,10 +264,12 @@ export default function AdminPage() {
                           {(u as unknown as { provider?: string }).provider || 'LOCAL'}
                         </td>
                         <td className="px-4 py-4">
-                          <NeuButton size="sm" variant="ghost"
-                            onClick={() => { setRoleModal({ userId: u.id, currentRoles: u.roles || [] }); setSelectedRoles([...(u.roles || [])]); }}>
-                            Edit Roles
-                          </NeuButton>
+                          {isSuperAdmin && (
+                            <NeuButton size="sm" variant="ghost"
+                              onClick={() => { setRoleModal({ userId: u.id, currentRoles: u.roles || [] }); setSelectedRoles([...(u.roles || [])]); }}>
+                              Edit Roles
+                            </NeuButton>
+                          )}
                         </td>
                       </motion.tr>
                     ))}
@@ -290,7 +294,7 @@ export default function AdminPage() {
                   >
                     <h3 className="text-xl font-bold text-white mb-5">Edit User Roles</h3>
                     <div className="space-y-3 mb-6">
-                      {['USER', 'ADMIN', 'TECHNICIAN', 'MANAGER'].map(role => {
+                      {['USER', 'ADMIN', 'TECHNICIAN', 'MANAGER', 'SUPER_ADMIN'].map(role => {
                         const checked = selectedRoles.includes(role);
                         return (
                           <label key={role} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-colors"
@@ -298,7 +302,7 @@ export default function AdminPage() {
                             <input type="checkbox" checked={checked}
                               onChange={e => { if (e.target.checked) setSelectedRoles([...selectedRoles, role]); else setSelectedRoles(selectedRoles.filter(r => r !== role)); }}
                               className="w-4 h-4 rounded accent-violet-500" />
-                            <span className={`text-sm font-semibold ${checked ? 'text-white' : 'text-slate-400'}`}>{role}</span>
+                            <span className={`text-sm font-bold ${checked ? 'text-violet-300' : 'text-slate-400'}`}>{role}</span>
                           </label>
                         );
                       })}

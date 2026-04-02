@@ -41,29 +41,17 @@ public class DataInitializer implements CommandLineRunner {
             admin.setUpdatedAt(LocalDateTime.now());
             userRepository.save(admin);
 
-            // Create technician user
-            User tech = new User();
-            tech.setName("John Technician");
-            tech.setEmail("tech@smartcampus.com");
-            tech.setPassword(passwordEncoder.encode("password123"));
-            tech.setProvider("LOCAL");
-            tech.setRoles(Set.of(User.Role.TECHNICIAN));
-            tech.setEnabled(true);
-            tech.setCreatedAt(LocalDateTime.now());
-            tech.setUpdatedAt(LocalDateTime.now());
-            userRepository.save(tech);
-
-            // Create regular user
-            User user = new User();
-            user.setName("Jane Student");
-            user.setEmail("user@smartcampus.com");
-            user.setPassword(passwordEncoder.encode("password123"));
-            user.setProvider("LOCAL");
-            user.setRoles(Set.of(User.Role.USER));
-            user.setEnabled(true);
-            user.setCreatedAt(LocalDateTime.now());
-            user.setUpdatedAt(LocalDateTime.now());
-            userRepository.save(user);
+            // Create Jane Student user
+            User student = new User();
+            student.setName("Jane Student");
+            student.setEmail("jane@smartcampus.com");
+            student.setPassword(passwordEncoder.encode("password123"));
+            student.setProvider("LOCAL");
+            student.setRoles(Set.of(User.Role.USER));
+            student.setEnabled(true);
+            student.setCreatedAt(LocalDateTime.now());
+            student.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(student);
         }
 
         if (facilityRepository.count() == 0) {

@@ -120,27 +120,6 @@ export default function LoginPage() {
     }
   };
 
-  const quickLogin = async (role: string) => {
-    setError('');
-    setLoading(true);
-    try {
-      const credentials: Record<string, { email: string; password: string }> = {
-        admin: { email: 'admin@smartcampus.com', password: 'password123' },
-        technician: { email: 'tech@smartcampus.com', password: 'password123' },
-        user: { email: 'user@smartcampus.com', password: 'password123' },
-      };
-      const cred = credentials[role];
-      await login(cred.email, cred.password);
-      setSuccess(true);
-      setTimeout(() => navigate('/dashboard'), 600);
-    } catch {
-      setError('Quick login failed. Make sure the backend is running.');
-      setShakeKey(k => k + 1);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const features = [
     { icon: Building2, label: 'Facility Booking', desc: 'Reserve rooms & equipment', color: 'text-blue-400' },
     { icon: Wrench, label: 'Incident Tracking', desc: 'Submit maintenance tickets', color: 'text-amber-400' },
@@ -470,32 +449,6 @@ export default function LoginPage() {
                 )}
               </div>
             </form>
-
-
-            {/* Quick Demo Login */}
-            <div className="mt-7 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="text-xs text-slate-500 text-center mb-4 font-medium">⚡ Quick Demo Login</p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { role: 'admin', label: 'Admin', icon: Shield, color: 'rgba(139,92,246,0.2)', border: 'rgba(139,92,246,0.3)', text: 'text-violet-300' },
-                  { role: 'technician', label: 'Tech', icon: Wrench, color: 'rgba(245,158,11,0.2)', border: 'rgba(245,158,11,0.3)', text: 'text-amber-300' },
-                  { role: 'user', label: 'User', icon: User, color: 'rgba(59,130,246,0.2)', border: 'rgba(59,130,246,0.3)', text: 'text-blue-300' },
-                ].map(({ role, label, icon: Icon, color, border, text }) => (
-                  <motion.button
-                    key={role}
-                    whileHover={{ scale: 1.04, y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => quickLogin(role)}
-                    disabled={loading}
-                    className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-semibold ${text} transition-all disabled:opacity-50`}
-                    style={{ background: color, border: `1px solid ${border}` }}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
           </motion.div>
         </div>
       </div>

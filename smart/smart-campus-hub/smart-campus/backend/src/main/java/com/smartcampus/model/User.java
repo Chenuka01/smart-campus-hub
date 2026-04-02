@@ -41,7 +41,7 @@ public class User {
     private LocalDateTime updatedAt;
 
     public enum Role {
-        USER, ADMIN, TECHNICIAN, MANAGER
+        USER, ADMIN, TECHNICIAN, MANAGER, SUPER_ADMIN
     }
 
     // Explicit getters/setters to satisfy IDE when Lombok processor cannot initialize
