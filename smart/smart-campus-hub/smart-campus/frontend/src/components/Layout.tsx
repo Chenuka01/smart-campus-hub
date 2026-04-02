@@ -19,10 +19,11 @@ const navItems = [
   { path: '/bookings', label: 'Bookings', icon: CalendarDays, color: 'text-cyan-400', glow: 'rgba(34,211,238,0.3)' },
   { path: '/tickets', label: 'Tickets', icon: Ticket, color: 'text-amber-400', glow: 'rgba(245,158,11,0.3)' },
   { path: '/notifications', label: 'Notifications', icon: Bell, color: 'text-rose-400', glow: 'rgba(244,63,94,0.3)' },
+  { path: '/admin', label: 'Admin Panel', icon: Shield, color: 'text-violet-400', glow: 'rgba(139,92,246,0.3)', role: 'ADMIN' },
 ];
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, logout, isAdmin, isTechnician } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isTechnician } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,7 +48,8 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const getRoleBadge = () => {
-    if (isAdmin) return { label: 'Admin', color: 'text-violet-300', bg: 'bg-violet-500/20 border-violet-500/30', icon: Shield };
+    if (isSuperAdmin) return { label: 'Super Admin', color: 'text-violet-300', bg: 'bg-violet-500/20 border-violet-500/30', icon: Shield };
+    if (isAdmin) return { label: 'Admin', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30', icon: Shield };
     if (isTechnician) return { label: 'Technician', color: 'text-amber-300', bg: 'bg-amber-500/20 border-amber-500/30', icon: Wrench };
     return { label: 'User', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30', icon: User };
   };
@@ -116,6 +118,11 @@ export default function Layout({ children }: LayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
             {navItems.map((item) => {
+              // Show ADMIN items to both Super Admin and normal Admin
+              if (item.role === 'ADMIN' && !isAdmin) return null;
+              // Show TECHNICIAN items to Technicians, and also Admin/Super Admin for management
+              if (item.role === 'TECHNICIAN' && !isTechnician && !isAdmin) return null;
+              
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               const Icon = item.icon;
               return (
@@ -162,7 +169,7 @@ export default function Layout({ children }: LayoutProps) {
                     )}
 
                     <Icon
-                      className={`w-4.5 h-4.5 transition-all flex-shrink-0 ${isActive ? item.color : 'text-slate-500'}`}
+                      className={`w-4.5 h-4.5 transition-all flex-shrink-0 ${isActive ? item.color + ' animate-pulse-glow' : 'text-slate-500'}`}
                       style={isActive ? { filter: `drop-shadow(0 0 6px ${item.glow})` } : {}}
                     />
                     <span className="font-medium">{item.label}</span>
@@ -181,41 +188,6 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
               );
             })}
-
-            {isAdmin && (
-              <Link
-                to="/admin"
-                onClick={() => setSidebarOpen(false)}
-                className="block relative"
-              >
-                <motion.div
-                  whileHover={{ x: 3 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                  className={`
-                    relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium
-                    transition-colors duration-200
-                    ${location.pathname.startsWith('/admin')
-                      ? 'text-white'
-                      : 'text-slate-400 hover:text-slate-100'
-                    }
-                  `}
-                  style={location.pathname.startsWith('/admin') ? {
-                    background: 'rgba(255,255,255,0.07)',
-                    boxShadow: '0 0 20px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.08)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                  } : {}}
-                >
-                  {location.pathname.startsWith('/admin') && (
-                    <motion.div
-                      className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-violet-400"
-                      layoutId="activeBar"
-                    />
-                  )}
-                  <Shield className={`w-4.5 h-4.5 flex-shrink-0 ${location.pathname.startsWith('/admin') ? 'text-violet-400' : 'text-slate-500'}`} />
-                  <span>Admin Panel</span>
-                </motion.div>
-              </Link>
-            )}
           </nav>
 
           {/* User Profile */}
