@@ -133,10 +133,59 @@ public class TicketService {
         return ticketRepository.findByStatus(status);
     }
 
+    public Ticket updateTicket(String ticketId, TicketRequest request, User user) {
+        Ticket ticket = getTicketById(ticketId);
+
+        // Security check: Only reporter or Admin can update.
+        // Also only if it's still OPEN (standard policy)
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r.name().contains("ADMIN"));
+        if (!ticket.getReportedBy().equals(user.getId()) && !isAdmin) {
+            throw new RuntimeException("Not authorized to edit this ticket");
+        }
+
+        if (ticket.getStatus() != Ticket.TicketStatus.OPEN && !isAdmin) {
+            throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
+        }
+
+        ticket.setTitle(request.getTitle());
+        ticket.setCategory(request.getCategory());
+        ticket.setPriority(Ticket.Priority.valueOf(request.getPriority()));
+        ticket.setDescription(request.getDescription());
+        ticket.setLocation(request.getLocation());
+        ticket.setContactEmail(request.getContactEmail());
+        ticket.setContactPhone(request.getContactPhone());
+        ticket.setUpdatedAt(LocalDateTime.now());
+
+        return ticketRepository.save(ticket);
+    }
+
     public void deleteTicket(String ticketId) {
         if (!ticketRepository.existsById(ticketId)) {
             throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
         }
         ticketRepository.deleteById(ticketId);
+    }
+
+    public void deleteTicketByUser(String ticketId, User user) {
+        Ticket ticket = getTicketById(ticketId);
+
+        // Only reporter (if OPEN) or Admin can delete
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r.name().contains("ADMIN"));
+        boolean isOwner = ticket.getReportedBy().equals(user.getId());
+
+        if (isAdmin) {
+            ticketRepository.deleteById(ticketId);
+            return;
+        }
+
+        if (isOwner) {
+            if (ticket.getStatus() == Ticket.TicketStatus.OPEN) {
+                ticketRepository.deleteById(ticketId);
+            } else {
+                throw new RuntimeException("Cannot delete a ticket that is " + ticket.getStatus());
+            }
+        } else {
+            throw new RuntimeException("Not authorized to delete this ticket");
+        }
     }
 }

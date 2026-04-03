@@ -82,6 +82,14 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketById(id));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Ticket> updateTicket(
+            @PathVariable String id,
+            @RequestBody TicketRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
+    }
+
     @PutMapping("/{id}/assign")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<Ticket> assignTicket(
@@ -103,9 +111,10 @@ public class TicketController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse> deleteTicket(@PathVariable String id) {
-        ticketService.deleteTicket(id);
+    public ResponseEntity<ApiResponse> deleteTicket(
+            @PathVariable String id,
+            @AuthenticationPrincipal User user) {
+        ticketService.deleteTicketByUser(id, user);
         return ResponseEntity.ok(ApiResponse.success("Ticket deleted successfully"));
     }
 }

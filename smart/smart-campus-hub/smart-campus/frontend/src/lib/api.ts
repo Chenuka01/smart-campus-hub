@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8083/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -87,6 +87,7 @@ export const ticketApi = {
   getAll: (status?: string) =>
     api.get('/tickets', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/tickets/${id}`),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/tickets/${id}`, data),
   assign: (id: string, technicianId: string, technicianName: string) =>
     api.put(`/tickets/${id}/assign`, { technicianId, technicianName }),
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>
