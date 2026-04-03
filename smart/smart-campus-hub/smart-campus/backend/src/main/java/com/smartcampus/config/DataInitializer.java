@@ -1,8 +1,10 @@
 package com.smartcampus.config;
 
 import com.smartcampus.model.Facility;
+import com.smartcampus.model.Ticket;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.FacilityRepository;
+import com.smartcampus.repository.TicketRepository;
 import com.smartcampus.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,18 +19,65 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final FacilityRepository facilityRepository;
+    private final TicketRepository ticketRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(UserRepository userRepository, FacilityRepository facilityRepository,
-                           PasswordEncoder passwordEncoder) {
+                           TicketRepository ticketRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.facilityRepository = facilityRepository;
+        this.ticketRepository = ticketRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     public void run(String... args) {
-        if (userRepository.count() == 0) {
+        // Ensure Super Admin exists regardless of count (to fix credential issues)
+        if (userRepository.findByEmail("superadmin@smartcampus.com").isEmpty()) {
+            User superAdmin = new User();
+            superAdmin.setName("Super Admin");
+            superAdmin.setEmail("superadmin@smartcampus.com");
+            superAdmin.setPassword(passwordEncoder.encode("password123"));
+            superAdmin.setProvider("LOCAL");
+            superAdmin.setRoles(Set.of(User.Role.SUPER_ADMIN, User.Role.ADMIN));
+            superAdmin.setEnabled(true);
+            superAdmin.setCreatedAt(LocalDateTime.now());
+            superAdmin.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(superAdmin);
+            System.out.println("Super Admin user created: superadmin@smartcampus.com / password123");
+        }
+
+        // Ensure Manager exists
+        if (userRepository.findByEmail("manager@smartcampus.com").isEmpty()) {
+            User manager = new User();
+            manager.setName("Manager User");
+            manager.setEmail("manager@smartcampus.com");
+            manager.setPassword(passwordEncoder.encode("manager123"));
+            manager.setProvider("LOCAL");
+            manager.setRoles(Set.of(User.Role.MANAGER));
+            manager.setEnabled(true);
+            manager.setCreatedAt(LocalDateTime.now());
+            manager.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(manager);
+            System.out.println("Manager user created: manager@smartcampus.com / manager123");
+        }
+
+        // Ensure Technician exists
+        if (userRepository.findByEmail("tech@smartcampus.com").isEmpty()) {
+            User tech = new User();
+            tech.setName("Technician User");
+            tech.setEmail("tech@smartcampus.com");
+            tech.setPassword(passwordEncoder.encode("tech123"));
+            tech.setProvider("LOCAL");
+            tech.setRoles(Set.of(User.Role.TECHNICIAN));
+            tech.setEnabled(true);
+            tech.setCreatedAt(LocalDateTime.now());
+            tech.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(tech);
+            System.out.println("Technician user created: tech@smartcampus.com / tech123");
+        }
+
+        if (userRepository.count() <= 1) {
             // Create admin user
             User admin = new User();
             admin.setName("Admin User");
@@ -82,6 +131,64 @@ public class DataInitializer implements CommandLineRunner {
                     List.of("Stage", "Sound System", "Lighting", "Air Conditioning", "Backstage"))
             );
             facilityRepository.saveAll(facilities);
+        }
+
+        if (ticketRepository.count() == 0) {
+            User tech = userRepository.findByEmail("tech@smartcampus.com").orElse(null);
+            User student = userRepository.findByEmail("jane@smartcampus.com").orElse(null);
+            Facility lab = facilityRepository.findAll().stream()
+                .filter(f -> f.getType() == Facility.FacilityType.LAB)
+                .findFirst().orElse(null);
+
+            if (tech != null && student != null && lab != null) {
+                Ticket t1 = new Ticket();
+                t1.setTitle("Projector not working");
+                t1.setDescription("The Sony projector in Main Lecture Hall A is flickering and won't display HDMI input.");
+                t1.setCategory("Equipment");
+                t1.setPriority(Ticket.Priority.HIGH);
+                t1.setStatus(Ticket.TicketStatus.OPEN);
+                t1.setReportedBy(student.getId());
+                t1.setReportedByName(student.getName());
+                t1.setFacilityId(lab.getId());
+                t1.setFacilityName(lab.getName());
+                t1.setLocation(lab.getLocation());
+                t1.setCreatedAt(LocalDateTime.now());
+                t1.setUpdatedAt(LocalDateTime.now());
+                ticketRepository.save(t1);
+
+                Ticket t2 = new Ticket();
+                t2.setTitle("AC Maintenance - Room 101");
+                t2.setDescription("AC is making a loud noise and not cooling properly.");
+                t2.setCategory("Maintenance");
+                t2.setPriority(Ticket.Priority.MEDIUM);
+                t2.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+                t2.setReportedBy(student.getId());
+                t2.setReportedByName(student.getName());
+                t2.setAssignedTo(tech.getId());
+                t2.setAssignedToName(tech.getName());
+                t2.setFacilityId(lab.getId());
+                t2.setFacilityName(lab.getName());
+                t2.setLocation(lab.getLocation());
+                t2.setCreatedAt(LocalDateTime.now().minusDays(1));
+                t2.setUpdatedAt(LocalDateTime.now());
+                ticketRepository.save(t2);
+
+                Ticket t3 = new Ticket();
+                t3.setTitle("Broken Chair in Seminar Room");
+                t3.setDescription("One of the chairs in the back row is broken.");
+                t3.setCategory("Furniture");
+                t3.setPriority(Ticket.Priority.LOW);
+                t3.setStatus(Ticket.TicketStatus.OPEN);
+                t3.setReportedBy(student.getId());
+                t3.setReportedByName(student.getName());
+                t3.setFacilityId(lab.getId());
+                t3.setFacilityName(lab.getName());
+                t3.setCreatedAt(LocalDateTime.now().minusHours(5));
+                t3.setUpdatedAt(LocalDateTime.now());
+                ticketRepository.save(t3);
+
+                System.out.println("Sample tickets seeded.");
+            }
         }
     }
 

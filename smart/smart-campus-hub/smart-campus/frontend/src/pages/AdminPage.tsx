@@ -18,7 +18,7 @@ const glassTooltipStyle = {
 };
 
 export default function AdminPage() {
-  const { isAdmin, isSuperAdmin, isManager, user: currentUser } = useAuth();
+  const { user: currentUser, isSuperAdmin, isAdmin, isManager } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
