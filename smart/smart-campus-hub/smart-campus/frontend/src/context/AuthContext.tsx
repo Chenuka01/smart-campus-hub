@@ -14,6 +14,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isTechnician: boolean;
+  isManager: boolean;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -94,10 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN') ?? false;
   const isAdmin = (user?.roles?.includes('ADMIN') || user?.roles?.includes('SUPER_ADMIN')) ?? false;
   const isTechnician = user?.roles?.includes('TECHNICIAN') ?? false;
+  const isManager = user?.roles?.includes('MANAGER') ?? false;
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, login, register, googleLogin, googleLoginWithToken, logout, updateUser, isSuperAdmin, isAdmin, isTechnician, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, login, register, googleLogin, googleLoginWithToken, logout, updateUser, isSuperAdmin, isAdmin, isTechnician, isManager, isAuthenticated, loading }}>
       {children}
     </AuthContext.Provider>
   );

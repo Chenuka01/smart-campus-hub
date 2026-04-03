@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, facilityApi, bookingApi, ticketApi } from '@/lib/api';
 import type { User, Facility, Booking, Ticket } from '@/lib/types';
-import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart } from 'lucide-react';
+import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, MoreVertical, ShieldAlert, Trash2, Edit2, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, statCounterVariants, fadeScaleVariants } from '@/lib/animations';
@@ -18,7 +18,7 @@ const glassTooltipStyle = {
 };
 
 export default function AdminPage() {
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin, isManager, user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -29,23 +29,40 @@ export default function AdminPage() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isManager) return;
     Promise.all([authApi.getUsers(), facilityApi.getAll(), bookingApi.getAll(), ticketApi.getAll()])
       .then(([ur, fr, br, tr]) => {
         setUsers(ur.data); setFacilities(fr.data); setBookings(br.data); setTickets(tr.data);
       }).catch(() => {}).finally(() => setLoading(false));
-  }, [isAdmin]);
+  }, [isAdmin, isManager]);
 
   const handleUpdateRoles = async () => {
     if (!roleModal) return;
     try {
       await authApi.updateUserRoles(roleModal.userId, selectedRoles);
       const res = await authApi.getUsers();
-      setUsers(res.data); setRoleModal(null);
-    } catch { alert('Only Super Admins can update roles'); }
+      setUsers(res.data);
+      setRoleModal(null);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update roles');
+    }
   };
 
-  if (!isAdmin) return (
+  const handleDeleteUser = async (userId: string) => {
+    if (userId === currentUser?.id) {
+        alert("You cannot delete your own account.");
+        return;
+    }
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+    try {
+      await authApi.deleteUser(userId);
+      setUsers(users.filter(u => u.id !== userId));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete user');
+    }
+  };
+
+  if (!isAdmin && !isManager) return (
     <div className="text-center py-20">
       <Shield className="w-12 h-12 mx-auto mb-3 text-slate-700" />
       <p className="text-slate-400 font-semibold">Admin access required</p>
@@ -83,6 +100,8 @@ export default function AdminPage() {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'facilities', label: 'Facilities', icon: Building2 },
+    { id: 'bookings', label: 'Bookings', icon: CalendarDays },
     { id: 'analytics', label: 'Analytics', icon: PieChart },
   ];
 
@@ -112,6 +131,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <motion.div variants={itemVariants} className="flex gap-1 p-1 rounded-2xl" style={{ background: 'rgba(0,0,0,0.2)' }}>
         {tabs.map(tab => {
+          if (tab.id === 'users' && !isSuperAdmin && !isAdmin) return null;
           const Icon = tab.icon;
           return (
             <motion.button
@@ -174,18 +194,17 @@ export default function AdminPage() {
                 <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-5">Facility Types</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={facilityTypeData}>
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8b5cf6" />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
                     <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                     <Tooltip contentStyle={glassTooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                    <Bar dataKey="value" fill="url(#barGradient)" radius={[6, 6, 0, 0]}>
-                      <defs>
-                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8b5cf6" />
-                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
-                        </linearGradient>
-                      </defs>
-                    </Bar>
+                    <Bar dataKey="value" fill="url(#barGradient)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </LiquidGlassCard>
@@ -264,12 +283,29 @@ export default function AdminPage() {
                           {(u as unknown as { provider?: string }).provider || 'LOCAL'}
                         </td>
                         <td className="px-4 py-4">
-                          {isSuperAdmin && (
-                            <NeuButton size="sm" variant="ghost"
-                              onClick={() => { setRoleModal({ userId: u.id, currentRoles: u.roles || [] }); setSelectedRoles([...(u.roles || [])]); }}>
-                              Edit Roles
-                            </NeuButton>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isSuperAdmin && (
+                              <>
+                                <button
+                                  onClick={() => { setRoleModal({ userId: u.id, currentRoles: u.roles || [] }); setSelectedRoles([...(u.roles || [])]); }}
+                                  className="p-2 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-colors"
+                                  title="Edit Roles"
+                                >
+                                  <ShieldAlert className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(u.id)}
+                                  className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors"
+                                  title="Delete User"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                            {!isSuperAdmin && (
+                              <span className="text-xs text-slate-500 italic">No permissions</span>
+                            )}
+                          </div>
                         </td>
                       </motion.tr>
                     ))}
@@ -315,6 +351,147 @@ export default function AdminPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* Facilities Tab */}
+        {activeTab === 'facilities' && (
+          <motion.div key="facilities" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-bold text-white">Manage Facilities</h3>
+              <NeuButton size="sm" variant="primary" onClick={() => window.location.href='/admin/facility/new'}>
+                Add Facility
+              </NeuButton>
+            </div>
+            <LiquidGlassCard className="overflow-hidden" depth={2}>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      {['Name', 'Type', 'Status', 'Capacity', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facilities.map((f, i) => (
+                      <motion.tr
+                        key={f.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="transition-colors group"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      >
+                        <td className="px-4 py-4 text-sm font-semibold text-white">{f.name}</td>
+                        <td className="px-4 py-4 text-xs text-slate-400 uppercase tracking-wider">{f.type.replace(/_/g, ' ')}</td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                            f.status === 'ACTIVE' 
+                              ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' 
+                              : 'bg-slate-400/10 text-slate-400 border-slate-400/20'
+                          }`}>
+                            {f.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-slate-300 font-medium">{f.capacity} ppl</td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                             <button 
+                                onClick={() => window.location.href=`/admin/facility/edit/${f.id}`}
+                                className="p-2 rounded-lg text-violet-400 hover:bg-violet-400/10 transition-colors"
+                             >
+                                <Edit2 className="w-4 h-4" />
+                             </button>
+                             <button 
+                                onClick={async () => {
+                                  if(confirm('Delete facility?')) {
+                                    await facilityApi.delete(f.id);
+                                    setFacilities(facilities.filter(x => x.id !== f.id));
+                                  }
+                                }}
+                                className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors"
+                             >
+                                <Trash2 className="w-4 h-4" />
+                             </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </LiquidGlassCard>
+          </motion.div>
+        )}
+
+        {/* Bookings Tab */}
+        {activeTab === 'bookings' && (
+          <motion.div key="bookings" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <h3 className="text-lg font-bold text-white mb-2">Manage Bookings</h3>
+            <LiquidGlassCard className="overflow-hidden" depth={2}>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      {['User', 'Facility', 'Date', 'Time', 'Status', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookings.map((b, i) => (
+                      <motion.tr
+                        key={b.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="transition-colors group"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      >
+                        <td className="px-4 py-4 text-sm font-semibold text-white">{b.userName}</td>
+                        <td className="px-4 py-4 text-sm text-slate-300">{b.facilityName}</td>
+                        <td className="px-4 py-4 text-sm text-slate-400">{b.date}</td>
+                        <td className="px-4 py-4 text-xs text-slate-400 font-mono">{b.startTime.slice(0,5)} - {b.endTime.slice(0,5)}</td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                            b.status === 'APPROVED' ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' :
+                            b.status === 'PENDING' ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' :
+                            b.status === 'REJECTED' ? 'bg-rose-400/10 text-rose-400 border-rose-400/20' :
+                            'bg-slate-400/10 text-slate-400 border-slate-400/20'
+                          }`}>
+                            {b.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                             {b.status === 'PENDING' && (
+                               <>
+                                 <button onClick={async () => {
+                                   await bookingApi.approve(b.id);
+                                   const res = await bookingApi.getAll(); setBookings(res.data);
+                                 }} className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-400/10 transition-colors">
+                                   <CheckCircle className="w-4 h-4" />
+                                 </button>
+                                 <button onClick={async () => {
+                                   const reason = prompt('Rejection reason:');
+                                   if(reason) {
+                                     await bookingApi.reject(b.id, reason);
+                                     const res = await bookingApi.getAll(); setBookings(res.data);
+                                   }
+                                 }} className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors">
+                                   <AlertTriangle className="w-4 h-4" />
+                                 </button>
+                               </>
+                             )}
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </LiquidGlassCard>
           </motion.div>
         )}
 

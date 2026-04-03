@@ -41,10 +41,12 @@ export const authApi = {
   // Legacy: sends pre-parsed user info (kept for compatibility)
   googleAuth: (data: { email: string; name: string; avatarUrl: string; providerId: string }) =>
     api.post('/auth/google', data),
-  getMe: () => api.get('/auth/me'),    updateProfile: (data: { name: string; email: string }) => 
-      api.put('/auth/profile', data),  getUsers: () => api.get('/auth/users'),
+  getMe: () => api.get('/auth/me'),
+  updateProfile: (data: { name: string; email: string }) => api.put('/auth/profile', data),
+  getUsers: () => api.get('/auth/users'),
   updateUserRoles: (userId: string, roles: string[]) =>
     api.put(`/auth/users/${userId}/roles`, { roles }),
+  deleteUser: (userId: string) => api.delete(`/auth/users/${userId}`),
 };
 
 // Facilities API

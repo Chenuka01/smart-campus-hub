@@ -42,7 +42,7 @@ public class FacilityController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Facility> createFacility(
             @RequestBody Facility facility,
             @AuthenticationPrincipal User user) {
@@ -51,7 +51,7 @@ public class FacilityController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Facility> updateFacility(
             @PathVariable String id,
             @RequestBody Facility facility) {
@@ -59,7 +59,7 @@ public class FacilityController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse> deleteFacility(@PathVariable String id) {
         facilityService.deleteFacility(id);
         return ResponseEntity.ok(ApiResponse.success("Facility deleted successfully"));
