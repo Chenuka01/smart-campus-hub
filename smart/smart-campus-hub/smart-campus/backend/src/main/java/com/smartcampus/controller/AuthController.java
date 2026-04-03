@@ -109,4 +109,11 @@ public class AuthController {
         User user = authService.updateUserRoles(userId, roles);
         return ResponseEntity.ok(ApiResponse.success("Roles updated successfully", user));
     }
+
+    @DeleteMapping("/users/{userId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse> deleteUser(@PathVariable String userId) {
+        authService.deleteUser(userId);
+        return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
+    }
 }

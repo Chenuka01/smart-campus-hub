@@ -97,6 +97,7 @@ public class AuthService {
         User user = userRepository.findByEmail(email).orElse(null);
 
         if (user == null) {
+            // Auto-create user for Google provider
             user = new User();
             user.setEmail(email);
             user.setName(name);
@@ -109,6 +110,17 @@ public class AuthService {
             user.setUpdatedAt(LocalDateTime.now());
             user = userRepository.save(user);
         } else {
+            // Check if user is trying to login with different provider than registered
+            if ("LOCAL".equals(user.getProvider()) && user.getProviderId() == null) {
+                // If it's a local user without social link, we can choose to link it or block it.
+                // Based on user request "google user correctly connect registered email in login with cannot other emails",
+                // we'll allow linking if the email matches.
+                user.setProvider("GOOGLE");
+                user.setProviderId(providerId);
+            } else if (!"GOOGLE".equals(user.getProvider())) {
+                throw new BadRequestException("This email is already registered with another provider: " + user.getProvider());
+            }
+            
             user.setName(name);
             user.setAvatarUrl(avatarUrl);
             user.setUpdatedAt(LocalDateTime.now());
@@ -138,5 +150,12 @@ public class AuthService {
 
     public java.util.List<User> getAllUsers() {
         return userRepository.findAll();
+    }
+
+    public void deleteUser(String userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new BadRequestException("User not found");
+        }
+        userRepository.deleteById(userId);
     }
 }
