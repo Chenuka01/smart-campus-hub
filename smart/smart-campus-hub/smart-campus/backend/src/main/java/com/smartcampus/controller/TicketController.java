@@ -68,7 +68,7 @@ public class TicketController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<List<Ticket>> getAllTickets(
             @RequestParam(required = false) String status) {
         if (status != null) {
@@ -91,7 +91,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -100,7 +100,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> updateTicketStatus(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {

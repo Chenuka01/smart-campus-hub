@@ -41,7 +41,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isTechnician } = useAuth();
   const location = useLocation();
 
   return (
@@ -49,7 +49,7 @@ function AppRoutes() {
       <Routes location={location} key={location.pathname}>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
         
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute>{isTechnician ? <Navigate to="/technician" replace /> : <DashboardPage />}</ProtectedRoute>} />
         
         <Route path="/facilities" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
         <Route path="/facilities/new" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />

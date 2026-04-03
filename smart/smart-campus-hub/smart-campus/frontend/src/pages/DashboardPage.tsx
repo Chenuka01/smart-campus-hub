@@ -9,7 +9,7 @@ import LiquidGlassCard from '@/components/LiquidGlassCard';
 import { containerVariants, itemVariants, statCounterVariants } from '@/lib/animations';
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isManager, isTechnician } = useAuth();
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -23,8 +23,12 @@ export default function DashboardPage() {
         setFacilities(facRes.data);
         setUnreadCount(notifRes.data.count);
         try {
-          if (isAdmin) {
+          if (isAdmin || isSuperAdmin || isManager) {
             const [bookRes, tickRes] = await Promise.all([bookingApi.getAll(), ticketApi.getAll()]);
+            setBookings(bookRes.data);
+            setTickets(tickRes.data);
+          } else if (isTechnician) {
+            const [bookRes, tickRes] = await Promise.all([bookingApi.getMy(), ticketApi.getAssigned()]);
             setBookings(bookRes.data);
             setTickets(tickRes.data);
           } else {
@@ -38,7 +42,7 @@ export default function DashboardPage() {
       }
     };
     fetchData();
-  }, [isAdmin]);
+  }, [isAdmin, isSuperAdmin, isManager, isTechnician]);
 
   const pendingBookings = bookings.filter(b => b.status === 'PENDING').length;
   const openTickets = tickets.filter(t => t.status === 'OPEN').length;
@@ -52,6 +56,7 @@ export default function DashboardPage() {
       gradient: 'from-violet-600 to-indigo-500',
       glow: 'rgba(139,92,246,0.4)', glowSoft: 'rgba(139,92,246,0.15)',
       trend: '+2 this month',
+      hidden: isTechnician
     },
     {
       label: 'Bookings', value: bookings.length,
@@ -59,6 +64,15 @@ export default function DashboardPage() {
       gradient: 'from-blue-500 to-cyan-500',
       glow: 'rgba(59,130,246,0.4)', glowSoft: 'rgba(59,130,246,0.15)',
       trend: '+5 this week',
+      hidden: isTechnician
+    },
+    {
+      label: 'My Tasks' , value: tickets.filter(t => t.status !== 'RESOLVED' && t.status !== 'CLOSED').length,
+      sub: `${openTickets} new tickets`, icon: TicketIcon,
+      gradient: 'from-amber-500 to-orange-500',
+      glow: 'rgba(245,158,11,0.4)', glowSoft: 'rgba(245,158,11,0.15)',
+      trend: `${inProgressTickets} active`,
+      hidden: !isTechnician
     },
     {
       label: 'Tickets', value: tickets.length,
@@ -66,6 +80,7 @@ export default function DashboardPage() {
       gradient: 'from-amber-500 to-orange-500',
       glow: 'rgba(245,158,11,0.4)', glowSoft: 'rgba(245,158,11,0.15)',
       trend: `${inProgressTickets} in progress`,
+      hidden: isTechnician
     },
     {
       label: 'Notifications', value: unreadCount,
@@ -102,9 +117,11 @@ export default function DashboardPage() {
             </p>
             <h1 className="text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
               {user?.name?.split(' ')[0]}{' '}
-              <span className="text-gradient">Hub</span>
+              <span className="text-gradient">{isTechnician ? 'Workstation' : 'Hub'}</span>
             </h1>
-            <p className="text-slate-400 mt-2 text-base">Here's a glimpse of your smart campus today.</p>
+            <p className="text-slate-400 mt-2 text-base">
+              {isTechnician ? 'Track your assignments and maintenance tasks.' : "Here's a glimpse of your smart campus today."}
+            </p>
           </div>
           <motion.div
             animate={{ rotate: [0, 5, -5, 0] }}
@@ -119,7 +136,7 @@ export default function DashboardPage() {
 
       {/* ─── Stats Grid ─── */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {stats.map((stat, i) => {
+        {stats.filter(s => !s.hidden).map((stat, i) => {
           const Icon = stat.icon;
           return (
             <motion.div
@@ -165,70 +182,71 @@ export default function DashboardPage() {
 
       {/* ─── Activity Grid ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Bookings */}
-        <motion.div variants={itemVariants}>
-          <LiquidGlassCard className="overflow-hidden" depth={2}>
-            <div className="flex items-center justify-between pb-4 mb-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center"
-                  style={{ boxShadow: '0 0 12px rgba(59,130,246,0.3)' }}
-                >
-                  <CalendarDays className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Recent Bookings</h3>
-                  <p className="text-xs text-slate-500">{pendingBookings} pending approval</p>
-                </div>
-              </div>
-              <Link
-                to="/bookings"
-                className="flex items-center gap-1 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors"
-              >
-                View all <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-            <div className="space-y-1">
-              {bookings.slice(0, 5).map((booking, i) => (
-                <motion.div
-                  key={booking.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
-                  style={{ '&:hover': { background: 'rgba(255,255,255,0.03)' } } as React.CSSProperties}
-                >
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    booking.status === 'APPROVED' ? 'bg-emerald-400' :
-                    booking.status === 'PENDING' ? 'bg-amber-400' :
-                    booking.status === 'REJECTED' ? 'bg-rose-400' : 'bg-slate-500'
-                  }`}
-                  style={{ boxShadow: booking.status === 'APPROVED' ? '0 0 6px rgba(52,211,153,0.6)' : booking.status === 'PENDING' ? '0 0 6px rgba(251,191,36,0.6)' : '' }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-200 truncate">{booking.facilityName}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{booking.date} · {booking.startTime}–{booking.endTime}</p>
-                  </div>
-                  <span
-                    className="px-2.5 py-1 text-[10px] font-semibold rounded-full"
-                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+        {/* Recent Bookings - Hide for technicians */}
+        {!isTechnician && (
+          <motion.div variants={itemVariants}>
+            <LiquidGlassCard className="overflow-hidden" depth={2}>
+              <div className="flex items-center justify-between pb-4 mb-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center"
+                    style={{ boxShadow: '0 0 12px rgba(59,130,246,0.3)' }}
                   >
-                    {booking.status}
-                  </span>
-                </motion.div>
-              ))}
-              {bookings.length === 0 && (
-                <div className="py-10 text-center">
-                  <CalendarDays className="w-8 h-8 mx-auto mb-3 text-slate-600" />
-                  <p className="text-sm text-slate-500">No bookings yet</p>
+                    <CalendarDays className="w-4.5 h-4.5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Recent Bookings</h3>
+                    <p className="text-xs text-slate-500">{pendingBookings} pending approval</p>
+                  </div>
                 </div>
-              )}
-            </div>
-          </LiquidGlassCard>
-        </motion.div>
+                <Link
+                  to="/bookings"
+                  className="flex items-center gap-1 text-xs font-semibold text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  View all <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+              <div className="space-y-1">
+                {bookings.slice(0, 5).map((booking, i) => (
+                  <motion.div
+                    key={booking.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors hover:bg-white/5"
+                  >
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      booking.status === 'APPROVED' ? 'bg-emerald-400' :
+                      booking.status === 'PENDING' ? 'bg-amber-400' :
+                      booking.status === 'REJECTED' ? 'bg-rose-400' : 'bg-slate-500'
+                    }`}
+                    style={{ boxShadow: booking.status === 'APPROVED' ? '0 0 6px rgba(52,211,153,0.6)' : booking.status === 'PENDING' ? '0 0 6px rgba(251,191,36,0.6)' : '' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-200 truncate">{booking.facilityName}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{booking.date} · {booking.startTime}–{booking.endTime}</p>
+                    </div>
+                    <span
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded-full"
+                      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                    >
+                      {booking.status}
+                    </span>
+                  </motion.div>
+                ))}
+                {bookings.length === 0 && (
+                  <div className="py-10 text-center">
+                    <CalendarDays className="w-8 h-8 mx-auto mb-3 text-slate-600" />
+                    <p className="text-sm text-slate-500">No bookings yet</p>
+                  </div>
+                )}
+              </div>
+            </LiquidGlassCard>
+          </motion.div>
+        )}
 
-        {/* Recent Tickets */}
-        <motion.div variants={itemVariants}>
+        {/* Recent Tickets - Full width if technician */}
+        <motion.div variants={itemVariants} className={isTechnician ? 'lg:col-span-2' : ''}>
           <LiquidGlassCard className="overflow-hidden" depth={2}>
             <div className="flex items-center justify-between pb-4 mb-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="flex items-center gap-3">
