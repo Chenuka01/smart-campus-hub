@@ -15,6 +15,7 @@ import NotificationsPage from '@/pages/NotificationsPage';
 import AdminPage from '@/pages/AdminPage';
 import ProfilePage from '@/pages/ProfilePage';
 import TechnicianPage from '@/pages/TechnicianPage';
+import AnalyticsDashboardPage from '@/pages/AnalyticsDashboardPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/facilities" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
         <Route path="/facilities/new" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/edit/:id" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
+        <Route path="/facilities/analytics" element={<ProtectedRoute><AnalyticsDashboardPage /></ProtectedRoute>} />
         
         <Route path="/bookings" element={<ProtectedRoute><BookingsPage /></ProtectedRoute>} />
         <Route path="/bookings/new" element={<ProtectedRoute><BookingFormPage /></ProtectedRoute>} />
