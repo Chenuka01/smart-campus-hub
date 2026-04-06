@@ -1,8 +1,11 @@
 package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
+import com.smartcampus.dto.NotificationPreferencesRequest;
 import com.smartcampus.model.Notification;
+import com.smartcampus.model.NotificationPreferences;
 import com.smartcampus.model.User;
+import com.smartcampus.repository.UserRepository;
 import com.smartcampus.service.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,9 +19,40 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
-    public NotificationController(NotificationService notificationService) {
+    public NotificationController(NotificationService notificationService, UserRepository userRepository) {
         this.notificationService = notificationService;
+        this.userRepository = userRepository;
+    }
+
+    @GetMapping("/preferences")
+    public ResponseEntity<NotificationPreferences> getPreferences(@AuthenticationPrincipal User user) {
+        User existingUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(existingUser.getNotificationPreferences());
+    }
+
+    @PutMapping("/preferences")
+    public ResponseEntity<ApiResponse> updatePreferences(@AuthenticationPrincipal User user, 
+                                                       @RequestBody NotificationPreferencesRequest request) {
+        User existingUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        NotificationPreferences prefs = existingUser.getNotificationPreferences();
+        prefs.setBookingAlertsEnabled(request.isBookingAlertsEnabled());
+        prefs.setTicketUpdatesEnabled(request.isTicketUpdatesEnabled());
+        prefs.setCommentsEnabled(request.isCommentsEnabled());
+        prefs.setEmailEnabled(request.isEmailEnabled());
+        prefs.setSmsEnabled(request.isSmsEnabled());
+        prefs.setDndEnabled(request.isDndEnabled());
+        prefs.setDndStartTime(request.getDndStartTime());
+        prefs.setDndEndTime(request.getDndEndTime());
+        
+        existingUser.setNotificationPreferences(prefs);
+        userRepository.save(existingUser);
+        
+        return ResponseEntity.ok(ApiResponse.success("Notification preferences updated"));
     }
 
     @GetMapping

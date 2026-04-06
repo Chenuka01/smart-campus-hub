@@ -36,6 +36,9 @@ public class User {
     @Column(name = "role")
     private Set<Role> roles;
 
+    @Embedded
+    private NotificationPreferences notificationPreferences = new NotificationPreferences();
+
     private boolean enabled = true;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -53,6 +56,7 @@ public class User {
     public String getProvider() { return provider; }
     public String getProviderId() { return providerId; }
     public Set<Role> getRoles() { return roles; }
+    public NotificationPreferences getNotificationPreferences() { return notificationPreferences; }
     public boolean isEnabled() { return enabled; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
@@ -65,6 +69,7 @@ public class User {
     public void setProvider(String provider) { this.provider = provider; }
     public void setProviderId(String providerId) { this.providerId = providerId; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
+    public void setNotificationPreferences(NotificationPreferences prefs) { this.notificationPreferences = prefs; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
