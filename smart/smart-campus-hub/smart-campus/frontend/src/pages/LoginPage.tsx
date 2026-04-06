@@ -10,6 +10,7 @@ import { celebrationVariants, errorShakeVariants } from '@/lib/animations';
 // Your Google OAuth Client ID from Google Cloud Console
 // Set this in frontend/.env as VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+let initializedGoogleClientId: string | null = null;
 
 // Type declarations for Google Identity Services
 declare global {
@@ -44,6 +45,11 @@ export default function LoginPage() {
   const { login, register, googleLoginWithToken } = useAuth();
   const navigate = useNavigate();
   const googleBtnRef = useRef<HTMLDivElement>(null);
+  const googleLoginRef = useRef(googleLoginWithToken);
+
+  useEffect(() => {
+    googleLoginRef.current = googleLoginWithToken;
+  }, [googleLoginWithToken]);
 
   // Initialize Google Identity Services when the component mounts
   useEffect(() => {
@@ -52,29 +58,37 @@ export default function LoginPage() {
     const initGoogle = () => {
       if (!window.google?.accounts?.id) return;
 
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response) => {
-          // response.credential is the Google ID token — send to backend for verification
-          setError('');
-          setLoading(true);
-          try {
-            await googleLoginWithToken(response.credential);
-            setSuccess(true);
-            setTimeout(() => navigate('/dashboard'), 600);
-          } catch {
-            setError('Google sign-in failed. Please try again.');
-            setShakeKey(k => k + 1);
-          } finally {
-            setLoading(false);
-          }
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
+      if (initializedGoogleClientId !== GOOGLE_CLIENT_ID) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async (response) => {
+            // response.credential is the Google ID token — send to backend for verification
+            setError('');
+            setLoading(true);
+            try {
+              await googleLoginRef.current(response.credential);
+              setSuccess(true);
+              setTimeout(() => navigate('/dashboard'), 600);
+            } catch (err: unknown) {
+              const error = err as { response?: { data?: { message?: string } } };
+              setError(
+                error.response?.data?.message ||
+                'Google sign-in failed. Check your Google OAuth authorized origins and backend URL, then try again.'
+              );
+              setShakeKey(k => k + 1);
+            } finally {
+              setLoading(false);
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        initializedGoogleClientId = GOOGLE_CLIENT_ID;
+      }
 
       // Render the official Google button into our styled container
       if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
         window.google.accounts.id.renderButton(googleBtnRef.current, {
           theme: 'filled_black',
           size: 'large',
@@ -97,7 +111,7 @@ export default function LoginPage() {
       }, 200);
       return () => clearInterval(interval);
     }
-  }, [googleLoginWithToken, navigate]);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
