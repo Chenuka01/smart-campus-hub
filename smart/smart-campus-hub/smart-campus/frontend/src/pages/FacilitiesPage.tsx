@@ -6,7 +6,7 @@ import { facilityApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
 import {
   Building2, Search, Filter, Plus, MapPin, Users,
-  Monitor, Camera, Laptop, FlaskConical, Presentation, X
+  Monitor, Camera, Laptop, FlaskConical, Presentation, X, BarChart3
 } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
@@ -81,13 +81,22 @@ export default function FacilitiesPage() {
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Facilities <span className="text-gradient">&amp; Assets</span></h1>
           <p className="text-slate-400 text-sm mt-1">Browse and manage campus resources</p>
         </div>
-        {canManage && (
-          <Link to="/facilities/new">
-            <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
-              Add Facility
-            </NeuButton>
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {canManage && (
+            <Link to="/facilities/analytics">
+              <NeuButton variant="secondary" size="md" icon={<BarChart3 className="w-4 h-4" />} iconPosition="left">
+                Usage Analytics
+              </NeuButton>
+            </Link>
+          )}
+          {canManage && (
+            <Link to="/facilities/new">
+              <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+                Add Facility
+              </NeuButton>
+            </Link>
+          )}
+        </div>
       </motion.div>
 
       {/* Search & Filters */}
