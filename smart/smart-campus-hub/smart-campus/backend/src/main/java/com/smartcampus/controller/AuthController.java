@@ -4,6 +4,7 @@ import com.smartcampus.dto.ApiResponse;
 import com.smartcampus.dto.AuthRequest;
 import com.smartcampus.dto.AuthResponse;
 import com.smartcampus.dto.RegisterRequest;
+import com.smartcampus.exception.BadRequestException;
 import com.smartcampus.model.User;
 import com.smartcampus.service.AuthService;
 import com.smartcampus.service.GoogleTokenVerifier;
@@ -52,7 +53,7 @@ public class AuthController {
     public ResponseEntity<AuthResponse> googleVerify(@RequestBody Map<String, String> request) {
         String idToken = request.get("credential");
         if (idToken == null || idToken.isBlank()) {
-            return ResponseEntity.badRequest().build();
+            throw new BadRequestException("Google credential is required");
         }
         // Server-side verification – DO NOT trust the client
         GoogleTokenVerifier.GoogleUserInfo userInfo = googleTokenVerifier.verify(idToken);

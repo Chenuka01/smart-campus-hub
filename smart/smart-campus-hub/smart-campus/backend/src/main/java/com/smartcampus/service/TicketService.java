@@ -16,20 +16,27 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final NotificationService notificationService;
+    private final TicketClassificationService ticketClassificationService;
 
-    public TicketService(TicketRepository ticketRepository, NotificationService notificationService) {
+    public TicketService(TicketRepository ticketRepository, NotificationService notificationService,
+                         TicketClassificationService ticketClassificationService) {
         this.ticketRepository = ticketRepository;
         this.notificationService = notificationService;
+        this.ticketClassificationService = ticketClassificationService;
     }
 
     public Ticket createTicket(TicketRequest request, User user, List<String> attachmentUrls) {
+        TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
+                request.getTitle(), request.getDescription(), request.getLocation(),
+                request.getCategory(), request.getPriority());
+
         Ticket ticket = new Ticket();
         ticket.setTitle(request.getTitle());
         ticket.setFacilityId(request.getFacilityId());
         ticket.setLocation(request.getLocation());
-        ticket.setCategory(request.getCategory());
+        ticket.setCategory(classification.category());
         ticket.setDescription(request.getDescription());
-        ticket.setPriority(Ticket.Priority.valueOf(request.getPriority()));
+        ticket.setPriority(classification.priority());
         ticket.setStatus(Ticket.TicketStatus.OPEN);
         ticket.setReportedBy(user.getId());
         ticket.setReportedByName(user.getName());
@@ -147,9 +154,13 @@ public class TicketService {
             throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
         }
 
+        TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
+                request.getTitle(), request.getDescription(), request.getLocation(),
+                request.getCategory(), request.getPriority());
+
         ticket.setTitle(request.getTitle());
-        ticket.setCategory(request.getCategory());
-        ticket.setPriority(Ticket.Priority.valueOf(request.getPriority()));
+        ticket.setCategory(classification.category());
+        ticket.setPriority(classification.priority());
         ticket.setDescription(request.getDescription());
         ticket.setLocation(request.getLocation());
         ticket.setContactEmail(request.getContactEmail());
