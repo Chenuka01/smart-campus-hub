@@ -82,6 +82,10 @@ export interface Ticket {
   updatedAt: string;
   resolvedAt?: string;
   closedAt?: string;
+  slaTargetMinutes?: number;
+  slaDueAt?: string;
+  slaBreached?: boolean;
+  slaMet?: boolean | null;
 }
 
 export interface Comment {
