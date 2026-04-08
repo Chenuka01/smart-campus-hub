@@ -35,7 +35,7 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-Runs on **http://localhost:8083**
+Runs on **http://localhost:8084**
 
 Default seed accounts (created automatically on first run):
 
@@ -62,20 +62,37 @@ Update `spring.datasource.username` / `spring.datasource.password` to match your
 
 Frontend API URL is in `frontend/.env`:
 ```
-VITE_API_URL=http://localhost:8083/api
+VITE_API_URL=http://localhost:8084/api
 ```
 
 ## API Documentation
 
-Swagger UI available at: **http://localhost:8083/swagger-ui/index.html**
+Swagger UI available at: **http://localhost:8084/swagger-ui/index.html**
 
 ## Core Features
 
 - **Module A** – Facilities & Assets Catalogue (lecture halls, labs, equipment)
 - **Module B** – Booking Management (PENDING → APPROVED/REJECTED → CANCELLED, conflict detection)
-- **Module C** – Maintenance & Incident Ticketing (priorities, technician assignment, file attachments, comments)
+- **Module C** – Maintenance & Incident Ticketing (AI category/priority suggestion, SLA timer, technician assignment, file attachments, comments)
 - **Module D** – Notifications (booking/ticket/comment events)
 - **Module E** – Authentication & Authorization (JWT, Google OAuth, RBAC: USER / ADMIN / TECHNICIAN)
+
+## Ticket SLA Example
+
+Tickets now carry an SLA timer based on priority:
+
+| Priority | SLA Target |
+|---|---|
+| CRITICAL | 4 hours |
+| HIGH | 8 hours |
+| MEDIUM | 24 hours |
+| LOW | 72 hours |
+
+Example:
+
+- A ticket reported at `2026-04-07 09:00` with priority `HIGH` gets an SLA due time of `2026-04-07 17:00`.
+- If it is resolved before `17:00`, the UI shows `Resolved within SLA`.
+- If it is still open after `17:00`, the UI shows `Overdue by ...`.
 
 ## Running Tests
 
