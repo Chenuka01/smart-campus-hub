@@ -3,12 +3,14 @@ package com.smartcampus.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartcampus.exception.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Set;
 
 /**
  * Verifies a Google ID token (credential from Google Identity Services)
@@ -22,8 +24,14 @@ import java.net.http.HttpResponse;
 public class GoogleTokenVerifier {
 
     private static final String TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo?id_token=";
+    private static final Set<String> GOOGLE_ISSUERS = Set.of("accounts.google.com", "https://accounts.google.com");
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final String googleClientId;
+
+    public GoogleTokenVerifier(@Value("${spring.security.oauth2.client.registration.google.client-id}") String googleClientId) {
+        this.googleClientId = googleClientId;
+    }
 
     /**
      * Verifies the Google ID token and returns the parsed user info.
@@ -51,9 +59,25 @@ public class GoogleTokenVerifier {
                 throw new UnauthorizedException("Google token error: " + json.get("error_description").asText());
             }
 
+            String audience = json.has("aud") ? json.get("aud").asText() : null;
+            if (audience == null || audience.isBlank()) {
+                throw new UnauthorizedException("Google token missing audience");
+            }
+            if (!googleClientId.equals(audience)) {
+                throw new UnauthorizedException("Google token audience does not match the configured client ID");
+            }
+
+            String issuer = json.has("iss") ? json.get("iss").asText() : null;
+            if (issuer == null || !GOOGLE_ISSUERS.contains(issuer)) {
+                throw new UnauthorizedException("Google token issuer is invalid");
+            }
+
             String email = json.has("email") ? json.get("email").asText() : null;
             if (email == null || email.isBlank()) {
                 throw new UnauthorizedException("Google token missing email");
+            }
+            if (json.has("email_verified") && !"true".equalsIgnoreCase(json.get("email_verified").asText())) {
+                throw new UnauthorizedException("Google account email is not verified");
             }
 
             String name = json.has("name") ? json.get("name").asText() :

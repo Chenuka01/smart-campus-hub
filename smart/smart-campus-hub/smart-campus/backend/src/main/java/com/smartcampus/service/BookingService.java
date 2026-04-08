@@ -57,6 +57,7 @@ public class BookingService {
         booking.setEndTime(request.getEndTime());
         booking.setPurpose(request.getPurpose());
         booking.setExpectedAttendees(request.getExpectedAttendees());
+        booking.setRebookedFromBookingId(request.getRebookedFromBookingId());
         booking.setStatus(Booking.BookingStatus.PENDING);
         booking.setCreatedAt(LocalDateTime.now());
         booking.setUpdatedAt(LocalDateTime.now());

@@ -8,6 +8,7 @@ import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, 
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
+import { getTicketSlaSummary } from '@/lib/ticketSla';
 
 const priorityConfig: Record<string, { color: string; glow: string; glassColor: string; pulse: boolean }> = {
   CRITICAL: { color: 'text-rose-300', glow: 'rgba(244,63,94,0.5)', glassColor: 'rgba(244,63,94,0.15)', pulse: true },
@@ -141,6 +142,7 @@ export default function TicketsPage() {
         {filtered.map((ticket, i) => {
           const pCfg = priorityConfig[ticket.priority] || priorityConfig.LOW;
           const sCfg = statusConfig[ticket.status] || statusConfig.OPEN;
+          const sla = getTicketSlaSummary(ticket);
           return (
             <motion.div key={ticket.id} custom={i} variants={scrollRevealVariants} initial="hidden" animate="visible">
               <LiquidGlassCard depth={2}>
@@ -176,6 +178,14 @@ export default function TicketsPage() {
                           <span>{ticket.location}</span>
                           <span>·</span>
                           <span>by {ticket.reportedByName}</span>
+                          <span>·</span>
+                          <span className={
+                            sla.tone === 'bad' ? 'text-rose-400' :
+                            sla.tone === 'good' ? 'text-emerald-400' :
+                            sla.tone === 'warning' ? 'text-amber-400' : 'text-slate-500'
+                          }>
+                            SLA: {sla.label}
+                          </span>
                           {ticket.assignedToName && (
                             <span className="flex items-center gap-1 text-violet-400">
                               <UserIcon className="w-3 h-3" /> {ticket.assignedToName}

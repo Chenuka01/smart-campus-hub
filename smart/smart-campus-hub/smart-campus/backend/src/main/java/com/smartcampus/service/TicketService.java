@@ -10,36 +10,46 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final NotificationService notificationService;
+    private final TicketClassificationService ticketClassificationService;
 
-    public TicketService(TicketRepository ticketRepository, NotificationService notificationService) {
+    public TicketService(TicketRepository ticketRepository, NotificationService notificationService,
+                         TicketClassificationService ticketClassificationService) {
         this.ticketRepository = ticketRepository;
         this.notificationService = notificationService;
+        this.ticketClassificationService = ticketClassificationService;
     }
 
     public Ticket createTicket(TicketRequest request, User user, List<String> attachmentUrls) {
+        TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
+                request.getTitle(), request.getDescription(), request.getLocation(),
+                request.getCategory(), request.getPriority());
+        LocalDateTime now = LocalDateTime.now();
+
         Ticket ticket = new Ticket();
         ticket.setTitle(request.getTitle());
         ticket.setFacilityId(request.getFacilityId());
         ticket.setLocation(request.getLocation());
-        ticket.setCategory(request.getCategory());
+        ticket.setCategory(classification.category());
         ticket.setDescription(request.getDescription());
-        ticket.setPriority(Ticket.Priority.valueOf(request.getPriority()));
+        ticket.setPriority(classification.priority());
         ticket.setStatus(Ticket.TicketStatus.OPEN);
         ticket.setReportedBy(user.getId());
         ticket.setReportedByName(user.getName());
         ticket.setContactEmail(request.getContactEmail());
         ticket.setContactPhone(request.getContactPhone());
         ticket.setAttachmentUrls(attachmentUrls);
-        ticket.setCreatedAt(LocalDateTime.now());
-        ticket.setUpdatedAt(LocalDateTime.now());
+        ticket.setCreatedAt(now);
+        ticket.setUpdatedAt(now);
+        applySlaPolicy(ticket, now);
 
-        return ticketRepository.save(ticket);
+        return applySlaState(ticketRepository.save(ticket));
     }
 
     public Ticket assignTicket(String ticketId, String technicianId, String technicianName) {
@@ -48,6 +58,7 @@ public class TicketService {
         ticket.setAssignedToName(technicianName);
         ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
         ticket.setUpdatedAt(LocalDateTime.now());
+        applySlaState(ticket);
         Ticket saved = ticketRepository.save(ticket);
 
         notificationService.createNotification(
@@ -83,6 +94,7 @@ public class TicketService {
             ticket.setRejectionReason(rejectionReason);
         }
 
+        applySlaState(ticket);
         Ticket saved = ticketRepository.save(ticket);
 
         Notification.NotificationType notifType;
@@ -113,24 +125,33 @@ public class TicketService {
     }
 
     public Ticket getTicketById(String id) {
-        return ticketRepository.findById(id)
+        Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
+        return applySlaState(ticket);
     }
 
     public List<Ticket> getAllTickets() {
-        return ticketRepository.findAll();
+        return ticketRepository.findAll().stream()
+                .map(this::applySlaState)
+                .toList();
     }
 
     public List<Ticket> getUserTickets(String userId) {
-        return ticketRepository.findByReportedBy(userId);
+        return ticketRepository.findByReportedBy(userId).stream()
+                .map(this::applySlaState)
+                .toList();
     }
 
     public List<Ticket> getAssignedTickets(String technicianId) {
-        return ticketRepository.findByAssignedTo(technicianId);
+        return ticketRepository.findByAssignedTo(technicianId).stream()
+                .map(this::applySlaState)
+                .toList();
     }
 
     public List<Ticket> getTicketsByStatus(Ticket.TicketStatus status) {
-        return ticketRepository.findByStatus(status);
+        return ticketRepository.findByStatus(status).stream()
+                .map(this::applySlaState)
+                .toList();
     }
 
     public Ticket updateTicket(String ticketId, TicketRequest request, User user) {
@@ -147,14 +168,20 @@ public class TicketService {
             throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
         }
 
+        TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
+                request.getTitle(), request.getDescription(), request.getLocation(),
+                request.getCategory(), request.getPriority());
+
         ticket.setTitle(request.getTitle());
-        ticket.setCategory(request.getCategory());
-        ticket.setPriority(Ticket.Priority.valueOf(request.getPriority()));
+        ticket.setCategory(classification.category());
+        ticket.setPriority(classification.priority());
         ticket.setDescription(request.getDescription());
         ticket.setLocation(request.getLocation());
         ticket.setContactEmail(request.getContactEmail());
         ticket.setContactPhone(request.getContactPhone());
         ticket.setUpdatedAt(LocalDateTime.now());
+        applySlaPolicy(ticket, ticket.getCreatedAt() != null ? ticket.getCreatedAt() : LocalDateTime.now());
+        applySlaState(ticket);
 
         return ticketRepository.save(ticket);
     }
@@ -187,5 +214,43 @@ public class TicketService {
         } else {
             throw new RuntimeException("Not authorized to delete this ticket");
         }
+    }
+
+    private void applySlaPolicy(Ticket ticket, LocalDateTime baseTime) {
+        int slaTargetMinutes = getSlaTargetMinutes(ticket.getPriority());
+        ticket.setSlaTargetMinutes(slaTargetMinutes);
+        ticket.setSlaDueAt(baseTime.plusMinutes(slaTargetMinutes));
+        ticket.setSlaMet(null);
+    }
+
+    private Ticket applySlaState(Ticket ticket) {
+        if (ticket.getSlaDueAt() == null) {
+            return ticket;
+        }
+
+        boolean terminal = ticket.getStatus() == Ticket.TicketStatus.RESOLVED
+                || ticket.getStatus() == Ticket.TicketStatus.CLOSED
+                || ticket.getStatus() == Ticket.TicketStatus.REJECTED;
+        boolean breached = LocalDateTime.now().isAfter(ticket.getSlaDueAt());
+        ticket.setSlaBreached(breached);
+
+        if (terminal) {
+            LocalDateTime completedAt = ticket.getResolvedAt() != null
+                    ? ticket.getResolvedAt()
+                    : ticket.getClosedAt() != null ? ticket.getClosedAt() : ticket.getUpdatedAt();
+            ticket.setSlaMet(completedAt != null && !completedAt.isAfter(ticket.getSlaDueAt()));
+        }
+
+        return ticket;
+    }
+
+    private int getSlaTargetMinutes(Ticket.Priority priority) {
+        Map<Ticket.Priority, Integer> priorityToMinutes = Map.of(
+                Ticket.Priority.CRITICAL, 4 * 60,
+                Ticket.Priority.HIGH, 8 * 60,
+                Ticket.Priority.MEDIUM, 24 * 60,
+                Ticket.Priority.LOW, 72 * 60
+        );
+        return priorityToMinutes.getOrDefault(priority, 24 * 60);
     }
 }

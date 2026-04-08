@@ -7,6 +7,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
@@ -54,6 +55,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse> handleMaxSizeException(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ApiResponse.error("File size exceeds maximum allowed size"));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiResponse> handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
+                .body(ApiResponse.error("Requested response format is not supported"));
     }
 
     @ExceptionHandler(Exception.class)
