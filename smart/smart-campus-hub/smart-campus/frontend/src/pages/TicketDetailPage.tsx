@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
-import { ticketApi, commentApi } from '@/lib/api';
+import { ticketApi, commentApi, API_BASE_URL } from '@/lib/api';
 import type { Ticket, Comment } from '@/lib/types';
 import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin, Mail, Phone } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
@@ -310,7 +310,7 @@ export default function TicketDetailPage() {
                     {ticket.attachmentUrls.map((url: string, i: number) => (
                       <motion.a
                         key={i}
-                        href={`http://localhost:8083${url}`}
+                        href={`${API_BASE_URL}${url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         whileHover={{ scale: 1.04 }}
@@ -318,7 +318,7 @@ export default function TicketDetailPage() {
                         style={{ aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}
                       >
                         <img
-                          src={`http://localhost:8083${url}`}
+                          src={`${API_BASE_URL}${url}`}
                           alt={`Attachment ${i + 1}`}
                           className="w-full h-full object-cover"
                           onError={e => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).parentElement!.style.background = 'rgba(255,255,255,0.05)'; }}

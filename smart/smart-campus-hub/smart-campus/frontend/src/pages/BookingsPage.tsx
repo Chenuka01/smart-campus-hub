@@ -18,6 +18,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function BookingsPage() {
   const { isAdmin, user } = useAuth();
+  const isManager = user?.roles?.includes('MANAGER') || false;
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,14 +27,14 @@ export default function BookingsPage() {
   const [reason, setReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => { fetchBookings(); }, [isAdmin, isManager]);
-
   const fetchBookings = async () => {
     try {
       const res = (isAdmin || isManager) ? await bookingApi.getAll() : await bookingApi.getMy();
       setBookings(res.data);
     } catch { /* ignore */ } finally { setLoading(false); }
   };
+
+  useEffect(() => { fetchBookings(); }, [isAdmin, isManager]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRebook = (booking: Booking) => {
     navigate(`/bookings/new`, {
