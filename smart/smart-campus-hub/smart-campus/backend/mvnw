@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn "$@"
+fi
+
+echo "Error: Maven is not installed or not available in PATH." >&2
+echo "Install Maven or add it to PATH, then rerun this command." >&2
+exit 1

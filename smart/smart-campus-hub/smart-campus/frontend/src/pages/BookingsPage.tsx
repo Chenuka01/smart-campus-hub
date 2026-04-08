@@ -26,11 +26,11 @@ export default function BookingsPage() {
   const [reason, setReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => { fetchBookings(); }, [isAdmin]);
+  useEffect(() => { fetchBookings(); }, [isAdmin, isManager]);
 
   const fetchBookings = async () => {
     try {
-      const res = isAdmin ? await bookingApi.getAll() : await bookingApi.getMy();
+      const res = (isAdmin || isManager) ? await bookingApi.getAll() : await bookingApi.getMy();
       setBookings(res.data);
     } catch { /* ignore */ } finally { setLoading(false); }
   };
@@ -138,6 +138,7 @@ export default function BookingsPage() {
         {filtered.map((booking, i) => {
           const cfg = statusConfig[booking.status] || statusConfig.PENDING;
           const Icon = cfg.icon;
+          const userCanManage = isAdmin || isManager;
           return (
             <motion.div
               key={booking.id}
@@ -162,7 +163,7 @@ export default function BookingsPage() {
                           <CalendarDays className="w-3 h-3" /> {booking.date}
                         </span>
                         <span>{booking.startTime} – {booking.endTime}</span>
-                        {isAdmin && (
+                        {userCanManage && (
                           <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-400" style={{ background: 'rgba(255,255,255,0.06)' }}>
                             by {booking.userName}
                           </span>
@@ -183,7 +184,7 @@ export default function BookingsPage() {
                     >
                       {cfg.label}
                     </span>
-                    {isAdmin && booking.status === 'PENDING' && (
+                    {userCanManage && booking.status === 'PENDING' && (
                       <div className="flex gap-2">
                         <NeuButton size="sm" variant="success" onClick={() => setActionModal({ id: booking.id, action: 'approve' })}>Approve</NeuButton>
                         <NeuButton size="sm" variant="danger" onClick={() => setActionModal({ id: booking.id, action: 'reject' })}>Reject</NeuButton>

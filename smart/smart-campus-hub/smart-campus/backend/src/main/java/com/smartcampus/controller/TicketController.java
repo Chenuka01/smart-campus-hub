@@ -68,7 +68,7 @@ public class TicketController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<List<Ticket>> getAllTickets(
             @RequestParam(required = false) String status) {
         if (status != null) {
@@ -82,8 +82,16 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketById(id));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Ticket> updateTicket(
+            @PathVariable String id,
+            @RequestBody TicketRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
+    }
+
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -92,7 +100,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> updateTicketStatus(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -103,9 +111,10 @@ public class TicketController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse> deleteTicket(@PathVariable String id) {
-        ticketService.deleteTicket(id);
+    public ResponseEntity<ApiResponse> deleteTicket(
+            @PathVariable String id,
+            @AuthenticationPrincipal User user) {
+        ticketService.deleteTicketByUser(id, user);
         return ResponseEntity.ok(ApiResponse.success("Ticket deleted successfully"));
     }
 }

@@ -23,7 +23,7 @@ const navItems = [
 ];
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, logout, isAdmin, isSuperAdmin, isTechnician } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isTechnician, isManager } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,6 +50,7 @@ export default function Layout({ children }: LayoutProps) {
   const getRoleBadge = () => {
     if (isSuperAdmin) return { label: 'Super Admin', color: 'text-violet-300', bg: 'bg-violet-500/20 border-violet-500/30', icon: Shield };
     if (isAdmin) return { label: 'Admin', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30', icon: Shield };
+    if (isManager) return { label: 'Manager', color: 'text-emerald-300', bg: 'bg-emerald-500/20 border-emerald-500/30', icon: LayoutDashboard };
     if (isTechnician) return { label: 'Technician', color: 'text-amber-300', bg: 'bg-amber-500/20 border-amber-500/30', icon: Wrench };
     return { label: 'User', color: 'text-blue-300', bg: 'bg-blue-500/20 border-blue-500/30', icon: User };
   };

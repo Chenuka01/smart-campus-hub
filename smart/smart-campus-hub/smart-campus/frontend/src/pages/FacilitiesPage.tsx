@@ -6,7 +6,7 @@ import { facilityApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
 import {
   Building2, Search, Filter, Plus, MapPin, Users,
-  Monitor, Camera, Laptop, FlaskConical, Presentation, X
+  Monitor, Camera, Laptop, FlaskConical, Presentation, X, BarChart3
 } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
@@ -35,7 +35,7 @@ const typeColors: Record<string, { gradient: string; glow: string }> = {
 };
 
 export default function FacilitiesPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager } = useAuth();
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -71,6 +71,8 @@ export default function FacilitiesPage() {
     );
   }
 
+  const canManage = isAdmin || isManager;
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
       {/* Header */}
@@ -79,13 +81,22 @@ export default function FacilitiesPage() {
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Facilities <span className="text-gradient">&amp; Assets</span></h1>
           <p className="text-slate-400 text-sm mt-1">Browse and manage campus resources</p>
         </div>
-        {isAdmin && (
-          <Link to="/facilities/new">
-            <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
-              Add Facility
-            </NeuButton>
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {canManage && (
+            <Link to="/facilities/analytics">
+              <NeuButton variant="secondary" size="md" icon={<BarChart3 className="w-4 h-4" />} iconPosition="left">
+                Usage Analytics
+              </NeuButton>
+            </Link>
+          )}
+          {canManage && (
+            <Link to="/facilities/new">
+              <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+                Add Facility
+              </NeuButton>
+            </Link>
+          )}
+        </div>
       </motion.div>
 
       {/* Search & Filters */}
@@ -248,7 +259,7 @@ export default function FacilitiesPage() {
                     <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
                       <NeuButton variant="primary" size="sm" fullWidth>Book Now</NeuButton>
                     </Link>
-                    {isAdmin && (
+                    {canManage && (
                       <Link to={`/facilities/edit/${facility.id}`}>
                         <NeuButton variant="secondary" size="sm">Edit</NeuButton>
                       </Link>

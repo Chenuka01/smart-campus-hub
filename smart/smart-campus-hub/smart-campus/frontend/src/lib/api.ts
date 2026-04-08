@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8083/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -20,7 +20,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = String(error.config?.url || '');
+    const isAuthRequest =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/google') ||
+      requestUrl.includes('/auth/google/verify');
+
+    if (error.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -41,10 +48,12 @@ export const authApi = {
   // Legacy: sends pre-parsed user info (kept for compatibility)
   googleAuth: (data: { email: string; name: string; avatarUrl: string; providerId: string }) =>
     api.post('/auth/google', data),
-  getMe: () => api.get('/auth/me'),    updateProfile: (data: { name: string; email: string }) => 
-      api.put('/auth/profile', data),  getUsers: () => api.get('/auth/users'),
+  getMe: () => api.get('/auth/me'),
+  updateProfile: (data: { name: string; email: string }) => api.put('/auth/profile', data),
+  getUsers: () => api.get('/auth/users'),
   updateUserRoles: (userId: string, roles: string[]) =>
     api.put(`/auth/users/${userId}/roles`, { roles }),
+  deleteUser: (userId: string) => api.delete(`/auth/users/${userId}`),
 };
 
 // Facilities API
@@ -85,6 +94,7 @@ export const ticketApi = {
   getAll: (status?: string) =>
     api.get('/tickets', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/tickets/${id}`),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/tickets/${id}`, data),
   assign: (id: string, technicianId: string, technicianName: string) =>
     api.put(`/tickets/${id}/assign`, { technicianId, technicianName }),
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>

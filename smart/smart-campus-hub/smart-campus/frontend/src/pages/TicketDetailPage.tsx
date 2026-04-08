@@ -4,10 +4,11 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi, commentApi } from '@/lib/api';
 import type { Ticket, Comment } from '@/lib/types';
-import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin, Mail, Phone } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
+import { getTicketSlaSummary } from '@/lib/ticketSla';
 
 const priorityCfg: Record<string, { color: string; glow: string; glassColor: string }> = {
   CRITICAL: { color: 'text-rose-300', glow: 'rgba(244,63,94,0.4)', glassColor: 'rgba(244,63,94,0.12)' },
@@ -41,6 +42,8 @@ export default function TicketDetailPage() {
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [editingTicket, setEditingTicket] = useState(false);
+  const [editTicketData, setEditTicketData] = useState<Partial<Ticket>>({});
 
   useEffect(() => {
     if (id) {
@@ -49,6 +52,24 @@ export default function TicketDetailPage() {
       }).finally(() => setLoading(false));
     }
   }, [id]);
+
+  const handleEditTicket = async () => {
+    if (!id || !editTicketData) return;
+    try {
+      await ticketApi.update(id, editTicketData);
+      const res = await ticketApi.getById(id);
+      setTicket(res.data);
+      setEditingTicket(false);
+    } catch { alert('Failed to update ticket'); }
+  };
+
+  const handleDeleteTicket = async () => {
+    if (!id || !confirm('Are you sure you want to delete this ticket?')) return;
+    try {
+      await ticketApi.delete(id);
+      navigate('/tickets');
+    } catch { alert('Failed to delete ticket'); }
+  };
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !id) return;
@@ -85,6 +106,7 @@ export default function TicketDetailPage() {
 
   const pc = priorityCfg[ticket.priority] || priorityCfg.LOW;
   const sc = statusCfg[ticket.status] || statusCfg.OPEN;
+  const sla = getTicketSlaSummary(ticket);
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="max-w-3xl mx-auto pb-8 space-y-5">
@@ -119,82 +141,244 @@ export default function TicketDetailPage() {
                 <span className="px-3 py-1 text-xs font-semibold rounded-full text-slate-400" style={{ background: 'rgba(255,255,255,0.06)' }}>
                   {ticket.category}
                 </span>
+                <span
+                  className="px-3 py-1 text-xs font-semibold rounded-full"
+                  style={{
+                    background:
+                      sla.tone === 'bad' ? 'rgba(244,63,94,0.12)' :
+                      sla.tone === 'good' ? 'rgba(16,185,129,0.12)' :
+                      sla.tone === 'warning' ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.06)',
+                    border:
+                      sla.tone === 'bad' ? '1px solid rgba(244,63,94,0.25)' :
+                      sla.tone === 'good' ? '1px solid rgba(16,185,129,0.25)' :
+                      sla.tone === 'warning' ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(255,255,255,0.08)',
+                    color:
+                      sla.tone === 'bad' ? '#fb7185' :
+                      sla.tone === 'good' ? '#6ee7b7' :
+                      sla.tone === 'warning' ? '#fcd34d' : '#94a3b8',
+                  }}
+                >
+                  SLA: {sla.label}
+                </span>
               </div>
             </div>
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Description</h3>
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
-            </div>
-
-            {/* Evidence Attachments */}
-            {ticket.attachmentUrls && ticket.attachmentUrls.length > 0 && (
-              <div>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <span>📎</span> Evidence Photos ({ticket.attachmentUrls.length})
-                </h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {ticket.attachmentUrls.map((url: string, i: number) => (
-                    <motion.a
-                      key={i}
-                      href={`http://localhost:8080${url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      whileHover={{ scale: 1.04 }}
-                      className="relative rounded-xl overflow-hidden block group"
-                      style={{ aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}
-                    >
-                      <img
-                        src={`http://localhost:8080${url}`}
-                        alt={`Attachment ${i + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).parentElement!.style.background = 'rgba(255,255,255,0.05)'; }}
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Open</span>
-                      </div>
-                    </motion.a>
-                  ))}
-                </div>
+            {/* Ticket Management Buttons */}
+            {(ticket.reportedBy === user?.id || isAdmin) && (
+              <div className="flex gap-2">
+                {ticket.status === 'OPEN' && (
+                  <button
+                    onClick={() => { setEditingTicket(true); setEditTicketData(ticket); }}
+                    className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-sm"
+                    title="Edit Ticket"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+                {(ticket.status === 'OPEN' || isAdmin) && (
+                  <button
+                    onClick={handleDeleteTicket}
+                    className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 transition-all shadow-sm"
+                    title="Delete Ticket"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             )}
+          </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <MapPin className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                {ticket.location}
+          {editingTicket ? (
+            <div className="space-y-4 p-4 rounded-2xl bg-white/5 border border-white/10 mb-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Title</label>
+                  <input
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.title}
+                    onChange={e => setEditTicketData({ ...editTicketData, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
+                  <select
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.category}
+                    onChange={e => setEditTicketData({ ...editTicketData, category: e.target.value })}
+                  >
+                    <option value="MAINTENANCE">Maintenance</option>
+                    <option value="IT_SUPPORT">IT Support</option>
+                    <option value="CLEANING">Cleaning</option>
+                    <option value="SECURITY">Security</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <User className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                Reported by {ticket.reportedByName}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Priority</label>
+                  <select
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.priority}
+                    onChange={e => setEditTicketData({ ...editTicketData, priority: e.target.value })}
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="CRITICAL">Critical</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Location / Resource</label>
+                  <input
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.location}
+                    onChange={e => setEditTicketData({ ...editTicketData, location: e.target.value })}
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Clock className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                {new Date(ticket.createdAt).toLocaleDateString()}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Contact Email</label>
+                  <input
+                    type="email"
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.contactEmail}
+                    onChange={e => setEditTicketData({ ...editTicketData, contactEmail: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Contact Phone</label>
+                  <input
+                    type="tel"
+                    className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                    value={editTicketData.contactPhone || ''}
+                    onChange={e => setEditTicketData({ ...editTicketData, contactPhone: e.target.value })}
+                  />
+                </div>
               </div>
-              {ticket.assignedToName && (
-                <div className="flex items-center gap-2 text-sm text-violet-400 font-semibold">
-                  <User className="w-3.5 h-3.5 flex-shrink-0" />
-                  Assigned to {ticket.assignedToName}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Description</label>
+                <textarea
+                  className="glass-input w-full px-3 py-2 rounded-lg text-sm h-24"
+                  value={editTicketData.description}
+                  onChange={e => setEditTicketData({ ...editTicketData, description: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <NeuButton size="sm" variant="ghost" onClick={() => setEditingTicket(false)}>Cancel</NeuButton>
+                <NeuButton size="sm" variant="primary" onClick={handleEditTicket}>Save Changes</NeuButton>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Resolution Timer</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">SLA Target</p>
+                    <p className="text-sm text-white">{ticket.slaTargetMinutes ? `${Math.round(ticket.slaTargetMinutes / 60)} hours` : 'Not set'}</p>
+                  </div>
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Due By</p>
+                    <p className="text-sm text-white">{ticket.slaDueAt ? new Date(ticket.slaDueAt).toLocaleString() : 'Not set'}</p>
+                  </div>
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Current SLA State</p>
+                    <p className={
+                      sla.tone === 'bad' ? 'text-sm text-rose-400' :
+                      sla.tone === 'good' ? 'text-sm text-emerald-400' :
+                      sla.tone === 'warning' ? 'text-sm text-amber-400' : 'text-sm text-slate-300'
+                    }>
+                      {sla.label}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Description</h3>
+                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+              </div>
+
+              {/* Evidence Attachments */}
+              {ticket.attachmentUrls && ticket.attachmentUrls.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <span>📎</span> Evidence Photos ({ticket.attachmentUrls.length})
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {ticket.attachmentUrls.map((url: string, i: number) => (
+                      <motion.a
+                        key={i}
+                        href={`http://localhost:8083${url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        whileHover={{ scale: 1.04 }}
+                        className="relative rounded-xl overflow-hidden block group"
+                        style={{ aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}
+                      >
+                        <img
+                          src={`http://localhost:8083${url}`}
+                          alt={`Attachment ${i + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).parentElement!.style.background = 'rgba(255,255,255,0.05)'; }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-semibold transition-opacity">Open</span>
+                        </div>
+                      </motion.a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <MapPin className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                  {ticket.location}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <User className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                  Reported by {ticket.reportedByName}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <Clock className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                  {new Date(ticket.createdAt).toLocaleDateString()}
+                </div>
+                {ticket.assignedToName && (
+                  <div className="flex items-center gap-2 text-sm text-violet-400 font-semibold">
+                    <User className="w-3.5 h-3.5 flex-shrink-0" />
+                    Assigned to {ticket.assignedToName}
+                  </div>
+                )}
+                {ticket.contactEmail && (
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Mail className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                    {ticket.contactEmail}
+                  </div>
+                )}
+                {ticket.contactPhone && (
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Phone className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                    {ticket.contactPhone}
+                  </div>
+                )}
+              </div>
+
+              {ticket.resolutionNotes && (
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Resolution Notes</h3>
+                  <p className="text-sm text-emerald-300">{ticket.resolutionNotes}</p>
+                </div>
+              )}
+              {ticket.rejectionReason && (
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)' }}>
+                  <h3 className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">Rejection Reason</h3>
+                  <p className="text-sm text-rose-300">{ticket.rejectionReason}</p>
                 </div>
               )}
             </div>
-
-            {ticket.resolutionNotes && (
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Resolution Notes</h3>
-                <p className="text-sm text-emerald-300">{ticket.resolutionNotes}</p>
-              </div>
-            )}
-            {ticket.rejectionReason && (
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)' }}>
-                <h3 className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">Rejection Reason</h3>
-                <p className="text-sm text-rose-300">{ticket.rejectionReason}</p>
-              </div>
-            )}
-          </div>
+          )}
         </LiquidGlassCard>
       </motion.div>
 

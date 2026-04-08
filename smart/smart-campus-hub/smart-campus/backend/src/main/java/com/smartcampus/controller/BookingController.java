@@ -37,7 +37,7 @@ public class BookingController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<List<Booking>> getAllBookings(
             @RequestParam(required = false) String status) {
         if (status != null) {
@@ -57,7 +57,7 @@ public class BookingController {
     }
 
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Booking> approveBooking(
             @PathVariable String id,
             @AuthenticationPrincipal User user) {
@@ -65,7 +65,7 @@ public class BookingController {
     }
 
     @PutMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Booking> rejectBooking(
             @PathVariable String id,
             @RequestBody Map<String, String> request,

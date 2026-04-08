@@ -11,6 +11,7 @@ import { itemVariants, errorShakeVariants } from '@/lib/animations';
 const categories = ['Electrical', 'Plumbing', 'HVAC', 'IT Equipment', 'Furniture', 'Cleaning', 'Safety', 'Other'];
 
 const priorityColors: Record<string, { bg: string; border: string; text: string }> = {
+  AUTO: { bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.25)', text: 'text-sky-300' },
   LOW: { bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)', text: 'text-slate-400' },
   MEDIUM: { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)', text: 'text-amber-400' },
   HIGH: { bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.3)', text: 'text-orange-400' },
@@ -28,8 +29,8 @@ export default function TicketFormPage() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [form, setForm] = useState({
-    title: '', facilityId: '', location: '', category: 'IT Equipment',
-    description: '', priority: 'MEDIUM', contactEmail: '', contactPhone: '',
+    title: '', facilityId: '', location: '', category: 'AUTO',
+    description: '', priority: 'AUTO', contactEmail: '', contactPhone: '',
   });
 
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function TicketFormPage() {
     } finally { setSaving(false); }
   };
 
-  const pc = priorityColors[form.priority] || priorityColors.MEDIUM;
+  const pc = priorityColors[form.priority] || priorityColors.AUTO;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -143,16 +144,18 @@ export default function TicketFormPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Category *</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Category</label>
               <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                 className="glass-select w-full px-4 py-3 rounded-xl text-sm">
+                <option value="AUTO">Auto-detect</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Priority *</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Priority</label>
               <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}
                 className="glass-select w-full px-4 py-3 rounded-xl text-sm">
+                <option value="AUTO">Auto-detect</option>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
@@ -169,7 +172,8 @@ export default function TicketFormPage() {
               <AlertTriangle className={`w-4 h-4 ${pc.text} ${form.priority === 'CRITICAL' ? 'animate-pulse-glow' : ''}`} />
             )}
             <span className={pc.text}>
-              {form.priority === 'CRITICAL' ? '🔴 Critical – Immediate attention required'
+              {form.priority === 'AUTO' ? 'AI auto-detect will infer priority from the issue title and description'
+              : form.priority === 'CRITICAL' ? '🔴 Critical – Immediate attention required'
               : form.priority === 'HIGH' ? '🟠 High – Resolve as soon as possible'
               : form.priority === 'MEDIUM' ? '🟡 Medium – Standard priority'
               : '⚪ Low – Non-urgent issue'}

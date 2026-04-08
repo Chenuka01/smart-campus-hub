@@ -8,6 +8,7 @@ import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, 
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
+import { getTicketSlaSummary } from '@/lib/ticketSla';
 
 const priorityConfig: Record<string, { color: string; glow: string; glassColor: string; pulse: boolean }> = {
   CRITICAL: { color: 'text-rose-300', glow: 'rgba(244,63,94,0.5)', glassColor: 'rgba(244,63,94,0.15)', pulse: true },
@@ -32,7 +33,7 @@ const glassModal = {
 };
 
 export default function TicketsPage() {
-  const { isAdmin, isTechnician } = useAuth();
+  const { isAdmin, isTechnician, isManager } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,12 +48,12 @@ export default function TicketsPage() {
 
   useEffect(() => {
     fetchTickets();
-    if (isAdmin) authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
-  }, [isAdmin, isTechnician]);
+    if (isAdmin || isManager) authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
+  }, [isAdmin, isTechnician, isManager]);
 
   const fetchTickets = async () => {
     try {
-      const res = isAdmin ? await ticketApi.getAll() : isTechnician ? await ticketApi.getAssigned() : await ticketApi.getMy();
+      const res = (isAdmin || isTechnician || isManager) ? await ticketApi.getAll() : await ticketApi.getMy();
       setTickets(res.data);
     } catch { /* ignore */ } finally { setLoading(false); }
   };
@@ -97,7 +98,7 @@ export default function TicketsPage() {
             Maintenance <span className="text-gradient">Tickets</span>
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            {isAdmin ? 'Manage all maintenance tickets' : isTechnician ? 'Your assigned tickets' : 'Report and track issues'}
+            {(isAdmin || isManager || isTechnician) ? 'Manage and track campus tickets' : 'Report and track issues'}
           </p>
         </div>
         <Link to="/tickets/new">
@@ -141,6 +142,7 @@ export default function TicketsPage() {
         {filtered.map((ticket, i) => {
           const pCfg = priorityConfig[ticket.priority] || priorityConfig.LOW;
           const sCfg = statusConfig[ticket.status] || statusConfig.OPEN;
+          const sla = getTicketSlaSummary(ticket);
           return (
             <motion.div key={ticket.id} custom={i} variants={scrollRevealVariants} initial="hidden" animate="visible">
               <LiquidGlassCard depth={2}>
@@ -176,6 +178,14 @@ export default function TicketsPage() {
                           <span>{ticket.location}</span>
                           <span>·</span>
                           <span>by {ticket.reportedByName}</span>
+                          <span>·</span>
+                          <span className={
+                            sla.tone === 'bad' ? 'text-rose-400' :
+                            sla.tone === 'good' ? 'text-emerald-400' :
+                            sla.tone === 'warning' ? 'text-amber-400' : 'text-slate-500'
+                          }>
+                            SLA: {sla.label}
+                          </span>
                           {ticket.assignedToName && (
                             <span className="flex items-center gap-1 text-violet-400">
                               <UserIcon className="w-3 h-3" /> {ticket.assignedToName}
@@ -190,10 +200,10 @@ export default function TicketsPage() {
                           View
                         </NeuButton>
                       </Link>
-                      {isAdmin && !ticket.assignedTo && ticket.status === 'OPEN' && (
+                      {(isAdmin || isManager) && !ticket.assignedTo && ticket.status === 'OPEN' && (
                         <NeuButton size="sm" variant="ghost" onClick={() => setAssignModal(ticket.id)}>Assign</NeuButton>
                       )}
-                      {(isAdmin || isTechnician) && ['OPEN', 'IN_PROGRESS'].includes(ticket.status) && (
+                      {(isAdmin || isTechnician || isManager) && ['OPEN', 'IN_PROGRESS'].includes(ticket.status) && (
                         <NeuButton size="sm" variant="ghost" onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }}>
                           Update
                         </NeuButton>
@@ -254,11 +264,11 @@ export default function TicketsPage() {
               <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="glass-select w-full px-4 py-3 rounded-xl text-sm mb-5">
                 <option value="">Select new status</option>
                 {statusModal.currentStatus === 'OPEN' && <option value="IN_PROGRESS">In Progress</option>}
-                {['OPEN', 'IN_PROGRESS'].includes(statusModal.currentStatus) && <option value="RESOLVED">Resolved</option>}
-                {statusModal.currentStatus === 'RESOLVED' && <option value="CLOSED">Closed</option>}
-                {isAdmin && <option value="REJECTED">Rejected</option>}
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+                {(isAdmin || isManager) && <option value="REJECTED">Rejected</option>}
               </select>
-              {newStatus === 'RESOLVED' && (
+              {(newStatus === 'RESOLVED' || newStatus === 'CLOSED') && (
                 <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
                   rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none mb-5"
                   placeholder="Resolution notes…" />
