@@ -55,6 +55,10 @@ public class Ticket {
     private LocalDateTime updatedAt;
     private LocalDateTime resolvedAt;
     private LocalDateTime closedAt;
+    private Integer slaTargetMinutes;
+    private LocalDateTime slaDueAt;
+    private Boolean slaBreached;
+    private Boolean slaMet;
 
     public enum Priority {
         LOW, MEDIUM, HIGH, CRITICAL
@@ -86,6 +90,10 @@ public class Ticket {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public LocalDateTime getResolvedAt() { return resolvedAt; }
     public LocalDateTime getClosedAt() { return closedAt; }
+    public Integer getSlaTargetMinutes() { return slaTargetMinutes; }
+    public LocalDateTime getSlaDueAt() { return slaDueAt; }
+    public Boolean getSlaBreached() { return slaBreached; }
+    public Boolean getSlaMet() { return slaMet; }
 
     public void setId(String id) { this.id = id; }
     public void setTitle(String title) { this.title = title; }
@@ -109,4 +117,8 @@ public class Ticket {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
     public void setClosedAt(LocalDateTime closedAt) { this.closedAt = closedAt; }
+    public void setSlaTargetMinutes(Integer slaTargetMinutes) { this.slaTargetMinutes = slaTargetMinutes; }
+    public void setSlaDueAt(LocalDateTime slaDueAt) { this.slaDueAt = slaDueAt; }
+    public void setSlaBreached(Boolean slaBreached) { this.slaBreached = slaBreached; }
+    public void setSlaMet(Boolean slaMet) { this.slaMet = slaMet; }
 }

@@ -27,6 +27,8 @@ public class BookingRequest {
     @Positive(message = "Expected attendees must be positive")
     private int expectedAttendees;
 
+    private String rebookedFromBookingId;
+
     public String getFacilityId() { return facilityId; }
     public LocalDate getDate() { return date; }
     public LocalTime getStartTime() { return startTime; }
@@ -40,4 +42,7 @@ public class BookingRequest {
     public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
     public void setPurpose(String purpose) { this.purpose = purpose; }
     public void setExpectedAttendees(int expectedAttendees) { this.expectedAttendees = expectedAttendees; }
+
+    public String getRebookedFromBookingId() { return rebookedFromBookingId; }
+    public void setRebookedFromBookingId(String rebookedFromBookingId) { this.rebookedFromBookingId = rebookedFromBookingId; }
 }

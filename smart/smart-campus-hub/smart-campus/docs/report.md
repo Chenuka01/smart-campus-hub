@@ -374,3 +374,29 @@ No server-side session storage is required. The JWT payload carries `userId`, `e
 
 ### `@ElementCollection` with `FetchType.EAGER`
 Collections stored in secondary tables (`user_roles`, `facility_amenities`, `facility_images`, `availability_windows`, `ticket_attachments`) are annotated with `FetchType.EAGER` to avoid LazyInitializationException when serializing to JSON outside an open JPA session (`spring.jpa.open-in-view=false`).
+
+---
+
+## 13. Advanced Feature: Notification Preferences
+
+### ⚙️ Overview
+The **Notification Preferences** feature allows users to customize their notification experience by controlling which types of alerts they receive and how they are delivered.
+
+### 🎛️ Customizable Options
+* **Booking Alerts** – Get updates on booking request status, approvals, rejections, and reminders.
+* **Ticket Updates** – Track progress, status changes, and resolution updates for maintenance/incident tickets.
+* **Comments** – Receive notifications for new comments and replies added to relevant bookings or tickets.
+
+### 🔔 Enable / Disable Control
+Users have granular control to toggle (**ON/OFF**) each notification type individually.
+This ensures they only receive necessary alerts, reducing notification fatigue and visual clutter.
+
+### 📅 Do Not Disturb Mode (DND)
+When enabled, users can set a specific quiet time period (e.g., night time, during lectures, or meetings) where all notifications are muted.
+
+### 📧 Delivery Channels
+Users can choose to use Email for notifications:
+* **Email Notifications**
+
+### ✅ User Benefit
+This feature significantly enhances the user experience by providing a personalized, convenient, and non-intrusive way to manage system communications.

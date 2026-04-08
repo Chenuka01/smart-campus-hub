@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { notificationApi } from '@/lib/api';
 import type { Notification } from '@/lib/types';
-import { Bell, CheckCircle2, XCircle, Ticket, MessageSquare, Check, CheckCheck, Trash2, Info } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Ticket, MessageSquare, Check, CheckCheck, Trash2, Info, Settings2, Moon, CalendarClock, Mail, Save } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, fadeScaleVariants } from '@/lib/animations';
@@ -31,9 +31,36 @@ const typeColors: Record<string, { glow: string; glassColor: string; textColor: 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'preferences'>('all');
+  const [prefs, setPrefs] = useState({
+    bookingAlerts: true,
+    ticketUpdates: true,
+    comments: true,
+    dndMode: false,
+    dndStart: '22:00',
+    dndEnd: '07:00',
+    emailNotes: true,
+  });
 
-  useEffect(() => { fetchNotifications(); }, []);
+    const fetchPreferences = async () => {
+    try {
+      const res = await notificationApi.getPreferences();
+      setPrefs(p => ({
+        ...p,
+        emailNotes: res.data.email,
+        dndMode: res.data.dndMode,
+        dndStart: res.data.dndStart || '22:00',
+        dndEnd: res.data.dndEnd || '07:00',
+        bookingAlerts: res.data.bookingAlerts,
+        ticketUpdates: res.data.ticketUpdates,
+        comments: res.data.comments
+      }));
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { 
+    fetchNotifications(); 
+    fetchPreferences();
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -42,6 +69,23 @@ export default function NotificationsPage() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
+    const handleSavePreferences = async () => {
+    try {
+      await notificationApi.updatePreferences({
+        email: prefs.emailNotes,
+        dndMode: prefs.dndMode,
+        dndStart: prefs.dndStart,
+        dndEnd: prefs.dndEnd,
+        bookingAlerts: prefs.bookingAlerts,
+        ticketUpdates: prefs.ticketUpdates,
+        comments: prefs.comments
+      });
+      alert('Preferences saved successfully! Check your email inbox.');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
+      alert('Failed to save preferences: \n\n' + errorMessage);
+    }
+  };
   const handleMarkAsRead = async (id: string) => {
     try {
       await notificationApi.markAsRead(id);
@@ -70,7 +114,7 @@ export default function NotificationsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
-        <p className="text-sm text-slate-500 animate-pulse">Loading notifications…</p>
+        <p className="text-sm text-slate-500 animate-pulse">Loading notificationsâ€¦</p>
       </div>
     );
   }
@@ -86,7 +130,7 @@ export default function NotificationsPage() {
           <p className="text-slate-400 text-sm mt-1">
             {unreadCount > 0
               ? <span className="text-violet-400 font-semibold">{unreadCount} unread notification{unreadCount > 1 ? 's' : ''}</span>
-              : 'You\'re all caught up! ✨'}
+              : 'You\'re all caught up! âœ¨'}
           </p>
         </div>
         {unreadCount > 0 && (
@@ -98,13 +142,13 @@ export default function NotificationsPage() {
 
       {/* Filter Tabs */}
       <motion.div variants={itemVariants} className="flex gap-2">
-        {(['all', 'unread'] as const).map(f => (
+        {(['all', 'unread', 'preferences'] as const).map(f => (
           <motion.button
             key={f}
             whileHover={{ scale: 1.03, y: -1 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setFilter(f)}
-            className="px-5 py-2.5 text-sm font-bold rounded-xl transition-all"
+            className="px-5 py-2.5 text-sm font-bold rounded-xl transition-all capitalize"
             style={filter === f ? {
               background: 'rgba(139,92,246,0.2)',
               border: '1px solid rgba(139,92,246,0.4)',
@@ -116,12 +160,151 @@ export default function NotificationsPage() {
               color: '#64748b',
             }}
           >
-            {f === 'all' ? `All (${notifications.length})` : `Unread (${unreadCount})`}
+            {f === 'all' ? `All (${notifications.length})` : f === 'unread' ? `Unread (${unreadCount})` : 'Preferences'}
           </motion.button>
         ))}
       </motion.div>
 
+      {filter === 'preferences' && (
+        <motion.div variants={itemVariants} className="space-y-6">
+          <LiquidGlassCard className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                <Settings2 className="w-5 h-5 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Notification Preferences</h2>
+                <p className="text-sm text-slate-400">Customize how and when you receive alerts.</p>
+              </div>
+            </div>
+
+            <div className="space-y-8">
+              {/* Alert Types */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Alert Types</h3>
+                
+                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <CalendarClock className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <p className="font-bold text-white">Booking Alerts</p>
+                      <p className="text-xs text-slate-400">Updates on your booking requests & approvals</p>
+                    </div>
+                  </div>
+                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.bookingAlerts ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.bookingAlerts ? 'translate-x-5' : ''}`} />
+                  </div>
+                  <input type="checkbox" className="hidden" checked={prefs.bookingAlerts} onChange={(e) => setPrefs({...prefs, bookingAlerts: e.target.checked})} />
+                </label>
+
+                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <Ticket className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <p className="font-bold text-white">Ticket Updates</p>
+                      <p className="text-xs text-slate-400">Status changes and resolutions for support tickets</p>
+                    </div>
+                  </div>
+                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.ticketUpdates ? 'bg-blue-500' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.ticketUpdates ? 'translate-x-5' : ''}`} />
+                  </div>
+                  <input type="checkbox" className="hidden" checked={prefs.ticketUpdates} onChange={(e) => setPrefs({...prefs, ticketUpdates: e.target.checked})} />
+                </label>
+
+                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <MessageSquare className="w-5 h-5 text-amber-400" />
+                    <div>
+                      <p className="font-bold text-white">Comments</p>
+                      <p className="text-xs text-slate-400">When someone comments on your bookings/tickets</p>
+                    </div>
+                  </div>
+                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.comments ? 'bg-amber-500' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.comments ? 'translate-x-5' : ''}`} />
+                  </div>
+                  <input type="checkbox" className="hidden" checked={prefs.comments} onChange={(e) => setPrefs({...prefs, comments: e.target.checked})} />
+                </label>
+              </div>
+
+              {/* Do Not Disturb Mode */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Do Not Disturb</h3>
+                
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                  <label className="flex items-center justify-between cursor-pointer mb-4">
+                    <div className="flex items-center gap-4">
+                      <Moon className="w-5 h-5 text-violet-400" />
+                      <div>
+                        <p className="font-bold text-white">DND Mode</p>
+                        <p className="text-xs text-slate-400">Mute notifications during a specific time period</p>
+                      </div>
+                    </div>
+                    <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.dndMode ? 'bg-violet-500' : 'bg-white/20'}`}>
+                      <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.dndMode ? 'translate-x-5' : ''}`} />
+                    </div>
+                    <input type="checkbox" className="hidden" checked={prefs.dndMode} onChange={(e) => setPrefs({...prefs, dndMode: e.target.checked})} />
+                  </label>
+
+                  <AnimatePresence>
+                    {prefs.dndMode && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="flex gap-4 pt-4 border-t border-white/10"
+                      >
+                        <div className="flex-1">
+                          <label className="text-xs font-semibold text-slate-400 mb-1 block">From</label>
+                          <input 
+                            type="time" 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500" 
+                            value={prefs.dndStart} 
+                            onChange={(e) => setPrefs({...prefs, dndStart: e.target.value})}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs font-semibold text-slate-400 mb-1 block">To</label>
+                          <input 
+                            type="time" 
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500" 
+                            value={prefs.dndEnd} 
+                            onChange={(e) => setPrefs({...prefs, dndEnd: e.target.value})}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Delivery Channels */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Delivery Channels</h3>
+                <div className="flex gap-4">
+                  <label className="flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                     <Mail className={`w-6 h-6 ${prefs.emailNotes ? 'text-violet-400' : 'text-slate-500'}`} />
+                     <p className={`font-bold text-sm ${prefs.emailNotes ? 'text-violet-300' : 'text-slate-400'}`}>Email</p>
+                     <input type="checkbox" className="hidden" checked={prefs.emailNotes} onChange={(e) => setPrefs({...prefs, emailNotes: e.target.checked})} />
+                     <div className={`w-10 h-5 rounded-full p-1 transition-colors ${prefs.emailNotes ? 'bg-violet-500' : 'bg-white/20'}`}>
+                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.emailNotes ? 'translate-x-5' : ''}`} />
+                     </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <NeuButton variant="primary" size="lg" icon={<Save className="w-5 h-5"/>} iconPosition="left" onClick={handleSavePreferences}>
+                  Save Preferences
+                </NeuButton>
+              </div>
+
+            </div>
+          </LiquidGlassCard>
+        </motion.div>
+      )}
+
       {/* Notification List */}
+      {filter !== 'preferences' && (
       <AnimatePresence mode="popLayout">
         {filtered.map((notification, index) => {
           const Icon = typeIcons[notification.type] || Bell;
@@ -214,8 +397,9 @@ export default function NotificationsPage() {
           );
         })}
       </AnimatePresence>
+      )}
 
-      {filtered.length === 0 && (
+      {filter !== 'preferences' && filtered.length === 0 && (
         <motion.div variants={itemVariants} className="text-center py-20">
           <div
             className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center animate-breathing"
@@ -234,3 +418,4 @@ export default function NotificationsPage() {
     </motion.div>
   );
 }
+

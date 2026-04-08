@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
-import { ticketApi, commentApi } from '@/lib/api';
+import { ticketApi, commentApi, API_BASE_URL } from '@/lib/api';
 import type { Ticket, Comment } from '@/lib/types';
 import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin, Mail, Phone } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
+import { getTicketSlaSummary } from '@/lib/ticketSla';
 
 const priorityCfg: Record<string, { color: string; glow: string; glassColor: string }> = {
   CRITICAL: { color: 'text-rose-300', glow: 'rgba(244,63,94,0.4)', glassColor: 'rgba(244,63,94,0.12)' },
@@ -105,6 +106,7 @@ export default function TicketDetailPage() {
 
   const pc = priorityCfg[ticket.priority] || priorityCfg.LOW;
   const sc = statusCfg[ticket.status] || statusCfg.OPEN;
+  const sla = getTicketSlaSummary(ticket);
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="max-w-3xl mx-auto pb-8 space-y-5">
@@ -138,6 +140,25 @@ export default function TicketDetailPage() {
                 </span>
                 <span className="px-3 py-1 text-xs font-semibold rounded-full text-slate-400" style={{ background: 'rgba(255,255,255,0.06)' }}>
                   {ticket.category}
+                </span>
+                <span
+                  className="px-3 py-1 text-xs font-semibold rounded-full"
+                  style={{
+                    background:
+                      sla.tone === 'bad' ? 'rgba(244,63,94,0.12)' :
+                      sla.tone === 'good' ? 'rgba(16,185,129,0.12)' :
+                      sla.tone === 'warning' ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.06)',
+                    border:
+                      sla.tone === 'bad' ? '1px solid rgba(244,63,94,0.25)' :
+                      sla.tone === 'good' ? '1px solid rgba(16,185,129,0.25)' :
+                      sla.tone === 'warning' ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(255,255,255,0.08)',
+                    color:
+                      sla.tone === 'bad' ? '#fb7185' :
+                      sla.tone === 'good' ? '#6ee7b7' :
+                      sla.tone === 'warning' ? '#fcd34d' : '#94a3b8',
+                  }}
+                >
+                  SLA: {sla.label}
                 </span>
               </div>
             </div>
@@ -251,6 +272,30 @@ export default function TicketDetailPage() {
           ) : (
             <div className="space-y-5">
               <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Resolution Timer</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">SLA Target</p>
+                    <p className="text-sm text-white">{ticket.slaTargetMinutes ? `${Math.round(ticket.slaTargetMinutes / 60)} hours` : 'Not set'}</p>
+                  </div>
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Due By</p>
+                    <p className="text-sm text-white">{ticket.slaDueAt ? new Date(ticket.slaDueAt).toLocaleString() : 'Not set'}</p>
+                  </div>
+                  <div className="rounded-2xl p-4 bg-white/5 border border-white/10">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Current SLA State</p>
+                    <p className={
+                      sla.tone === 'bad' ? 'text-sm text-rose-400' :
+                      sla.tone === 'good' ? 'text-sm text-emerald-400' :
+                      sla.tone === 'warning' ? 'text-sm text-amber-400' : 'text-sm text-slate-300'
+                    }>
+                      {sla.label}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Description</h3>
                 <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
               </div>
@@ -265,7 +310,7 @@ export default function TicketDetailPage() {
                     {ticket.attachmentUrls.map((url: string, i: number) => (
                       <motion.a
                         key={i}
-                        href={`http://localhost:8083${url}`}
+                        href={`${API_BASE_URL}${url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         whileHover={{ scale: 1.04 }}
@@ -273,7 +318,7 @@ export default function TicketDetailPage() {
                         style={{ aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)' }}
                       >
                         <img
-                          src={`http://localhost:8083${url}`}
+                          src={`${API_BASE_URL}${url}`}
                           alt={`Attachment ${i + 1}`}
                           className="w-full h-full object-cover"
                           onError={e => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).parentElement!.style.background = 'rgba(255,255,255,0.05)'; }}

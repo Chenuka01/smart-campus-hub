@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from '@/lib/api';
 import type { AuthResponse } from '@/lib/types';
@@ -104,3 +105,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
