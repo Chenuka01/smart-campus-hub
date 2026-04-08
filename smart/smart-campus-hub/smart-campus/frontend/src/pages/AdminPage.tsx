@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, facilityApi, bookingApi, ticketApi } from '@/lib/api';
 import type { User, Facility, Booking, Ticket } from '@/lib/types';
-import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, MoreVertical, ShieldAlert, Trash2, Edit2, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, statCounterVariants, fadeScaleVariants } from '@/lib/animations';

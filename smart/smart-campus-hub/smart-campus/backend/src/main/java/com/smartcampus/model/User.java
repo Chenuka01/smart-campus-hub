@@ -40,9 +40,27 @@ public class User {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public enum Role {
-        USER, ADMIN, TECHNICIAN, MANAGER, SUPER_ADMIN
-    }
+    // Notification Preferences
+    @Column(name = "email_notifications_enabled")
+    private Boolean emailNotificationsEnabled = true;
+
+    @Column(name = "booking_alerts_enabled")
+    private Boolean bookingAlertsEnabled = true;
+
+    @Column(name = "ticket_updates_enabled")
+    private Boolean ticketUpdatesEnabled = true;
+
+    @Column(name = "comment_alerts_enabled")
+    private Boolean commentAlertsEnabled = true;
+
+    @Column(name = "dnd_enabled")
+    private Boolean dndEnabled = false;
+
+    @Column(name = "dnd_start_time")
+    private String dndStartTime = "22:00";
+
+    @Column(name = "dnd_end_time")
+    private String dndEndTime = "08:00";
 
     // Explicit getters/setters to satisfy IDE when Lombok processor cannot initialize
     public String getId() { return id; }
@@ -57,6 +75,14 @@ public class User {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 
+    public Boolean isEmailNotificationsEnabled() { return emailNotificationsEnabled != null ? emailNotificationsEnabled : true; }
+    public Boolean isBookingAlertsEnabled() { return bookingAlertsEnabled != null ? bookingAlertsEnabled : true; }
+    public Boolean isTicketUpdatesEnabled() { return ticketUpdatesEnabled != null ? ticketUpdatesEnabled : true; }
+    public Boolean isCommentAlertsEnabled() { return commentAlertsEnabled != null ? commentAlertsEnabled : true; }
+    public Boolean isDndEnabled() { return dndEnabled != null ? dndEnabled : false; }
+    public String getDndStartTime() { return dndStartTime; }
+    public String getDndEndTime() { return dndEndTime; }
+
     public void setId(String id) { this.id = id; }
     public void setEmail(String email) { this.email = email; }
     public void setPassword(String password) { this.password = password; }
@@ -68,4 +94,19 @@ public class User {
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public void setEmailNotificationsEnabled(Boolean emailNotificationsEnabled) { this.emailNotificationsEnabled = emailNotificationsEnabled != null ? emailNotificationsEnabled : true; }
+    public void setBookingAlertsEnabled(Boolean bookingAlertsEnabled) { this.bookingAlertsEnabled = bookingAlertsEnabled != null ? bookingAlertsEnabled : true; }
+    public void setTicketUpdatesEnabled(Boolean ticketUpdatesEnabled) { this.ticketUpdatesEnabled = ticketUpdatesEnabled != null ? ticketUpdatesEnabled : true; }
+    public void setCommentAlertsEnabled(Boolean commentAlertsEnabled) { this.commentAlertsEnabled = commentAlertsEnabled != null ? commentAlertsEnabled : true; }
+    public void setDndEnabled(Boolean dndEnabled) { this.dndEnabled = dndEnabled != null ? dndEnabled : false; }
+    public void setDndStartTime(String dndStartTime) { this.dndStartTime = dndStartTime; }
+    public void setDndEndTime(String dndEndTime) { this.dndEndTime = dndEndTime; }
+
+    public enum Role {
+        USER, ADMIN, TECHNICIAN, MANAGER, SUPER_ADMIN
+    }
 }
+
+
+

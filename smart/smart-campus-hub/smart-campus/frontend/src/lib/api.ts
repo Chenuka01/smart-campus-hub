@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8083/api';
 
@@ -120,6 +120,10 @@ export const notificationApi = {
   markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
   delete: (id: string) => api.delete(`/notifications/${id}`),
+  getPreferences: () => api.get('/notifications/preferences'),
+  updatePreferences: (data: any) => api.put('/notifications/preferences', data),
 };
 
 export default api;
+
+
