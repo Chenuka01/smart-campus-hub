@@ -4,6 +4,7 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { API_BASE_URL } from '@/lib/api';
 
 interface Notification {
   id: string;
@@ -42,7 +43,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const socketUrl = 'http://localhost:8083/ws-campus';
+    const socketUrl = `${API_BASE_URL}/ws-campus`;
+    
     const client = new Client({
       webSocketFactory: () => new SockJS(socketUrl),
       connectHeaders: {
@@ -56,7 +58,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       heartbeatOutgoing: 4000,
     });
 
-    client.onConnect = (_frame) => {
+    client.onConnect = () => {
       console.log('Connected to WebSocket');
       setConnected(true);
 

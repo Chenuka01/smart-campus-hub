@@ -77,9 +77,15 @@ export default function AnalyticsDashboardPage() {
   // Peak usage times (by hour)
   const hourMap: Record<number, number> = {};
   bookings.forEach(booking => {
-    const date = new Date(booking.startTime);
-    const hour = date.getHours();
-    hourMap[hour] = (hourMap[hour] || 0) + 1;
+    if (booking.startTime) {
+      const timeParts = booking.startTime.split(':');
+      if (timeParts.length > 0) {
+        const hour = parseInt(timeParts[0], 10);
+        if (!isNaN(hour)) {
+          hourMap[hour] = (hourMap[hour] || 0) + 1;
+        }
+      }
+    }
   });
 
   const peakUsageData = Array.from({ length: 24 }, (_, i) => ({
@@ -146,7 +152,7 @@ export default function AnalyticsDashboardPage() {
             <div>
               <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Most Active Hour</p>
               <h3 className="text-3xl font-bold text-white mt-1">
-                {peakUsageData.reduce((prev, current) => (prev.bookings > current.bookings) ? prev : current).hour}
+                {peakUsageData.length > 0 ? (peakUsageData.reduce((prev, current) => (prev.bookings > current.bookings) ? prev : current).hour) : 'N/A'}
               </h3>
             </div>
             <div className="p-3 bg-amber-500/20 rounded-xl">

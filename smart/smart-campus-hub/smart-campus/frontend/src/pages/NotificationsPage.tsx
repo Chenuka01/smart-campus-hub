@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { notificationApi } from '@/lib/api';
 import type { Notification } from '@/lib/types';
-import { Bell, CheckCircle2, XCircle, Ticket, MessageSquare, Check, CheckCheck, Trash2, Info, Settings2, Moon, CalendarClock, Smartphone, Mail, Save } from 'lucide-react';
+import { Bell, CheckCircle2, XCircle, Ticket, MessageSquare, Check, CheckCheck, Trash2, Info, Settings2, Moon, CalendarClock, Mail, Save } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, fadeScaleVariants } from '@/lib/animations';
