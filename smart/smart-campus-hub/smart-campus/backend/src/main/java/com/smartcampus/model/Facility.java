@@ -63,7 +63,6 @@ public class Facility {
     }
 
     @Data
-    @NoArgsConstructor
     @Embeddable
     public static class AvailabilityWindow {
         private String dayOfWeek;

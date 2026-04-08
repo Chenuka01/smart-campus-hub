@@ -5,6 +5,8 @@ import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import FacilitiesPage from '@/pages/FacilitiesPage';
+import FacilityTypeDetailsPage from '@/pages/FacilityTypeDetailsPage';
+import FavoritesPage from '@/pages/FavoritesPage';
 import FacilityFormPage from '@/pages/FacilityFormPage';
 import BookingsPage from '@/pages/BookingsPage';
 import BookingFormPage from '@/pages/BookingFormPage';
@@ -53,6 +55,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={<ProtectedRoute>{isTechnician ? <Navigate to="/technician" replace /> : <DashboardPage />}</ProtectedRoute>} />
         
         <Route path="/facilities" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
+        <Route path="/facilities/type/:type" element={<ProtectedRoute><FacilityTypeDetailsPage /></ProtectedRoute>} />
+        <Route path="/facilities/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
         <Route path="/facilities/new" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/edit/:id" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/analytics" element={<ProtectedRoute><AnalyticsDashboardPage /></ProtectedRoute>} />
