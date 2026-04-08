@@ -44,6 +44,9 @@ public class Booking {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    @Column(name = "rebooked_from_booking_id")
+    private String rebookedFromBookingId;
+
     public enum BookingStatus {
         PENDING, APPROVED, REJECTED, CANCELLED
     }
@@ -81,4 +84,7 @@ public class Booking {
     public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    
+    public String getRebookedFromBookingId() { return rebookedFromBookingId; }
+    public void setRebookedFromBookingId(String rebookedFromBookingId) { this.rebookedFromBookingId = rebookedFromBookingId; }
 }
