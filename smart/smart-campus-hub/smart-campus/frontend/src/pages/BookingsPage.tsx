@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { bookingApi } from '@/lib/api';
 import type { Booking } from '@/lib/types';
-import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, MessageSquare } from 'lucide-react';
+import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, MessageSquare, X } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
@@ -17,7 +17,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 };
 
 export default function BookingsPage() {
-  const { isAdmin, isManager, user } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -34,8 +35,32 @@ export default function BookingsPage() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
+  const handleRebook = (booking: Booking) => {
+    navigate(`/bookings/new`, {
+      state: {
+        isRebooking: true,
+        oldBooking: {
+          id: booking.id,
+          facilityId: booking.facilityId,
+          facilityName: booking.facilityName,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          purpose: booking.purpose,
+          expectedAttendees: booking.expectedAttendees,
+          oldDate: booking.date
+        }
+      }
+    });
+  };
+
   const handleAction = async () => {
     if (!actionModal) return;
+
+    if ((actionModal.action === 'reject' || actionModal.action === 'cancel') && !reason.trim()) {
+      alert('Please provide a reason.');
+      return;
+    }
+
     setActionLoading(true);
     try {
       if (actionModal.action === 'approve') await bookingApi.approve(actionModal.id);
@@ -168,6 +193,9 @@ export default function BookingsPage() {
                     {booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
                       <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel</NeuButton>
                     )}
+                    {!isAdmin && (booking.status === 'APPROVED' || booking.status === 'COMPLETED') && (
+                      <NeuButton size="sm" variant="primary" onClick={() => handleRebook(booking)}>Rebook</NeuButton>
+                    )}
                   </div>
                 </div>
               </LiquidGlassCard>
@@ -198,7 +226,7 @@ export default function BookingsPage() {
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: 'spring', stiffness: 280, damping: 22 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-md rounded-3xl p-6"
+              className="w-full max-w-md rounded-3xl p-6 relative"
               style={{
                 background: 'rgba(20, 10, 50, 0.95)',
                 backdropFilter: 'blur(24px)',
@@ -206,6 +234,14 @@ export default function BookingsPage() {
                 boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
               }}
             >
+              <button 
+                onClick={() => setActionModal(null)}
+                className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
               <h3 className="text-xl font-bold text-white mb-5 capitalize">{actionModal.action} Booking</h3>
               {(actionModal.action === 'reject' || actionModal.action === 'cancel') && (
                 <div className="mb-5">
@@ -222,16 +258,20 @@ export default function BookingsPage() {
               {actionModal.action === 'approve' && (
                 <p className="text-slate-400 text-sm mb-5">Are you sure you want to approve this booking?</p>
               )}
-              <div className="flex gap-3">
+              <div className="flex">
                 <NeuButton
                   onClick={handleAction}
                   loading={actionLoading}
-                  variant={actionModal.action === 'approve' ? 'success' : actionModal.action === 'reject' ? 'danger' : 'secondary'}
+                  variant={actionModal.action === 'approve' ? 'success' : actionModal.action === 'reject' ? 'danger' : 'danger'}
                   fullWidth
                 >
-                  {actionModal.action.charAt(0).toUpperCase() + actionModal.action.slice(1)}
+                  {actionModal.action === 'cancel' 
+                    ? 'Confirm Cancellation' 
+                    : actionModal.action === 'reject' 
+                      ? 'Submit Rejection'
+                      : 'Approve'
+                  }
                 </NeuButton>
-                <NeuButton onClick={() => setActionModal(null)} variant="ghost">Cancel</NeuButton>
               </div>
             </motion.div>
           </motion.div>
