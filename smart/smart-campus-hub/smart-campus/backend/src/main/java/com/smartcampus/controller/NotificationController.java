@@ -53,4 +53,37 @@ public class NotificationController {
         notificationService.deleteNotification(id);
         return ResponseEntity.ok(ApiResponse.success("Notification deleted"));
     }
+
+    @GetMapping("/preferences")
+    public ResponseEntity<com.smartcampus.dto.NotificationPreferencesRequest> getPreferences(@AuthenticationPrincipal User user) {
+        com.smartcampus.dto.NotificationPreferencesRequest prefs = new com.smartcampus.dto.NotificationPreferencesRequest();
+        prefs.setBookingAlerts(user.isBookingAlertsEnabled());
+        prefs.setTicketUpdates(user.isTicketUpdatesEnabled());
+        prefs.setComments(user.isCommentAlertsEnabled());
+        prefs.setEmail(user.isEmailNotificationsEnabled());
+        prefs.setDndMode(user.isDndEnabled());
+        prefs.setDndStart(user.getDndStartTime());
+        prefs.setDndEnd(user.getDndEndTime());
+        return ResponseEntity.ok(prefs);
+    }
+
+    @PutMapping("/preferences")
+    public ResponseEntity<ApiResponse> updatePreferences(@AuthenticationPrincipal User user, @RequestBody com.smartcampus.dto.NotificationPreferencesRequest prefs) {
+        notificationService.updatePreferences(user.getId(), prefs);
+
+        // Try sending an immediate test email manually bypassing logic, catching exactly why it fails.
+        try {
+            notificationService.createNotification(
+                user.getId(),
+                "Preferences Updated!",
+                "Your notification settings were successfully updated.\n\nEmail Alerts: " + (prefs.isEmail() ? "ON" : "OFF") + "\nDND Mode: " + (prefs.isDndMode() ? "ON (" + prefs.getDndStart() + " to " + prefs.getDndEnd() + ")" : "OFF"),
+                Notification.NotificationType.SYSTEM, null, null
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error("Failed to send: " + e.getMessage()));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Preferences updated successfully. Check email Inbox!"));
+
+    }
 }

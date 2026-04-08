@@ -285,7 +285,7 @@ export default function AnalyticsDashboardPage() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {statusData.map((entry, index) => (
+                    {statusData.map((_entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>

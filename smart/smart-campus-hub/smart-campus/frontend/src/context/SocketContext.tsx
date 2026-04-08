@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -55,7 +56,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       heartbeatOutgoing: 4000,
     });
 
-    client.onConnect = (frame) => {
+    client.onConnect = (_frame) => {
       console.log('Connected to WebSocket');
       setConnected(true);
 
@@ -97,3 +98,4 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     </SocketContext.Provider>
   );
 }
+
