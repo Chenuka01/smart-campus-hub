@@ -77,6 +77,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<AuthResponse> getCurrentUser(@AuthenticationPrincipal User user) {
         Set<String> roleStrings = user.getRoles().stream()
                 .map(Enum::name)
@@ -88,6 +89,7 @@ public class AuthController {
     }
 
     @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<AuthResponse> updateProfile(@AuthenticationPrincipal User user, @RequestBody Map<String, String> request) {
         AuthResponse response = authService.updateProfile(user.getId(), request.get("name"), request.get("email"));
         return ResponseEntity.ok(response);
