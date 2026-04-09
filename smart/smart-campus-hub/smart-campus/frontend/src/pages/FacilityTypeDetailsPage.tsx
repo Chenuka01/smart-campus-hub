@@ -173,9 +173,11 @@ export default function FacilityTypeDetailsPage() {
                 )}
 
                 <div className="flex gap-2 mt-auto pt-2">
-                  <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
-                    <NeuButton variant="primary" size="sm" fullWidth>Book Now</NeuButton>
-                  </Link>
+                  {!(isAdmin || isManager) && (
+                    <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
+                      <NeuButton variant="primary" size="sm" fullWidth>Book Now</NeuButton>
+                    </Link>
+                  )}
                   {canManage && (
                     <Link to={`/facilities/edit/${facility.id}`}>
                       <NeuButton variant="secondary" size="sm">Edit</NeuButton>

@@ -3,10 +3,11 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { facilityApi, bookingApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
-import { ArrowLeft, CalendarDays, Building2, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Building2, Users, CalendarSearch } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { itemVariants, errorShakeVariants } from '@/lib/animations';
+import AvailabilityCalendarModal from '@/components/AvailabilityCalendarModal';
 
 export default function BookingFormPage() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function BookingFormPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ attendees?: string; time?: string }>({});
   const [shakeKey, setShakeKey] = useState(0);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [form, setForm] = useState({
     facilityId: preselectedFacilityId || (isRebooking ? rebookData?.facilityId : ''),
     date: '',
@@ -70,8 +72,8 @@ export default function BookingFormPage() {
         const endTotalMinutes = endH * 60 + endM;
 
         if (day === 0 || day === 6) { // Weekends
-          if (startTotalMinutes < 480 || endTotalMinutes > 1200) { // 8:00 AM to 8:00 PM
-            errors.time = 'On weekends, bookings are only allowed from 8:00 AM to 8:00 PM.';
+          if (startTotalMinutes < 510 || endTotalMinutes > 1230) { // 8:30 AM to 8:30 PM
+            errors.time = 'On weekends, bookings are only allowed from 8:30 AM to 8:30 PM.';
             isValid = false;
           }
         } else { // Weekdays
@@ -190,20 +192,33 @@ export default function BookingFormPage() {
 
           {/* Times */}
           <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-semibold text-slate-300">Time *</label>
+              {selectedFacility && (
+                <button 
+                  type="button" 
+                  onClick={() => setIsCalendarOpen(true)}
+                  className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium tracking-wide transition-colors"
+                >
+                  <CalendarSearch className="w-4 h-4" />
+                  View Availability Calendar
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Start Time *</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Start Time *</label>
                 <input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })}
                   className="glass-input w-full px-4 py-3 rounded-xl text-sm" required />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">End Time *</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">End Time *</label>
                 <input type="time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })}
                   className="glass-input w-full px-4 py-3 rounded-xl text-sm" required />
               </div>
             </div>
             {fieldErrors.time && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">âš ï¸  {fieldErrors.time}</p>
+              <p className="text-rose-400 text-xs mt-2 font-medium">⚠️ {fieldErrors.time}</p>
             )}
           </div>
 
@@ -222,7 +237,7 @@ export default function BookingFormPage() {
               onChange={e => setForm({ ...form, expectedAttendees: parseInt(e.target.value) })}
               min="1" className="glass-input w-full px-4 py-3 rounded-xl text-sm" required />
             {fieldErrors.attendees && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">âš ï¸  {fieldErrors.attendees}</p>
+              <p className="text-rose-400 text-xs mt-2 font-medium">⚠️ {fieldErrors.attendees}</p>
             )}
           </div>
 
@@ -234,6 +249,25 @@ export default function BookingFormPage() {
           </div>
         </form>
       </LiquidGlassCard>
+
+      {/* Calendars Modal */}
+      {selectedFacility && (
+        <AvailabilityCalendarModal
+          isOpen={isCalendarOpen}
+          onClose={() => setIsCalendarOpen(false)}
+          facilityId={selectedFacility.id}
+          facilityName={`${selectedFacility.name} (${selectedFacility.location})`}
+          initialDate={form.date}
+          onSelectSlot={(date, startTime, endTime) => {
+            setForm(prev => ({
+              ...prev,
+              date,
+              startTime,
+              endTime
+            }));
+          }}
+        />
+      )}
     </motion.div>
   );
 }

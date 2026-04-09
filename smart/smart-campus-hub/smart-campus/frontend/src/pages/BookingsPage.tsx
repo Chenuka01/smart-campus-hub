@@ -94,14 +94,16 @@ export default function BookingsPage() {
             <span className="text-gradient">Bookings</span>
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            {isAdmin ? 'Manage all facility bookings' : 'View and manage your bookings'}
+            {(isAdmin || isManager) ? 'Manage all facility bookings' : 'View and manage your bookings'}
           </p>
         </div>
-        <Link to="/bookings/new">
-          <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
-            New Booking
-          </NeuButton>
-        </Link>
+        {!(isAdmin || isManager) && (
+          <Link to="/bookings/new">
+            <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+              New Booking
+            </NeuButton>
+          </Link>
+        )}
       </motion.div>
 
       {/* Status Filter Tabs */}
