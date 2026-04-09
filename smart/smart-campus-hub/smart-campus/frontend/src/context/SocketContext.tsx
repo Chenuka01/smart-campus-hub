@@ -5,7 +5,6 @@ import SockJS from 'sockjs-client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '@/lib/api';
-import { getStoredToken } from '@/lib/authStorage';
 
 interface Notification {
   id: string;
@@ -45,12 +44,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
 
     const socketUrl = `${API_BASE_URL}/ws-campus`;
-    const token = getStoredToken();
     
     const client = new Client({
       webSocketFactory: () => new SockJS(socketUrl),
       connectHeaders: {
-        Authorization: token ? `Bearer ${token}` : '',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
       debug: (str) => {
         console.log(str);

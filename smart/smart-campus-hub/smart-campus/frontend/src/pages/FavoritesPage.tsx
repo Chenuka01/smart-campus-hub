@@ -39,7 +39,7 @@ export default function FavoritesPage() {
   const { isAdmin, isManager } = useAuth();
   const [allFacilities, setAllFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toggleFavorite, isFavorite } = useFavorites();
+  const { toggleFavorite, isFavorite, favorites } = useFavorites();
 
   useEffect(() => {
     fetchFacilities();
