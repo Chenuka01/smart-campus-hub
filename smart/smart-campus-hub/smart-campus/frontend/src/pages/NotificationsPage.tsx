@@ -130,7 +130,7 @@ export default function NotificationsPage() {
           <p className="text-slate-400 text-sm mt-1">
             {unreadCount > 0
               ? <span className="text-violet-400 font-semibold">{unreadCount} unread notification{unreadCount > 1 ? 's' : ''}</span>
-              : 'You\'re all caught up! âœ¨'}
+              : 'You\'re all caught up! ✨'}
           </p>
         </div>
         {unreadCount > 0 && (
