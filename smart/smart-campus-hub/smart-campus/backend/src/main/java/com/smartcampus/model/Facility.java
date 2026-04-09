@@ -69,6 +69,8 @@ public class Facility {
         private String startTime;
         private String endTime;
 
+        public AvailabilityWindow() {}
+
         public AvailabilityWindow(String dayOfWeek, String startTime, String endTime) {
             this.dayOfWeek = dayOfWeek;
             this.startTime = startTime;
