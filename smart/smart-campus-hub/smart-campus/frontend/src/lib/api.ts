@@ -1,4 +1,5 @@
-﻿import axios from 'axios';
+import axios from 'axios';
+import { clearStoredAuth, getStoredToken } from '@/lib/authStorage';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8084/api';
 export const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
@@ -11,7 +12,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -29,8 +30,7 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/google/verify');
 
     if (error.response?.status === 401 && !isAuthRequest) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearStoredAuth();
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -126,5 +126,3 @@ export const notificationApi = {
 };
 
 export default api;
-
-
