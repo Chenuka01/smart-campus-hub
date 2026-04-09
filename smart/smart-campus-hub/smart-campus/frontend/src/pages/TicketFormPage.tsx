@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { facilityApi, ticketApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
-import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload } from 'lucide-react';
+import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload, Eye, Pencil, RotateCcw, Check } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { itemVariants, errorShakeVariants } from '@/lib/animations';
@@ -21,6 +21,8 @@ const priorityColors: Record<string, { bg: string; border: string; text: string 
 export default function TicketFormPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,6 +30,10 @@ export default function TicketFormPage() {
   const [shakeKey, setShakeKey] = useState(0);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [annotationColor, setAnnotationColor] = useState('#ef4444');
+  const [annotationBrushSize, setAnnotationBrushSize] = useState(4);
   const [form, setForm] = useState({
     title: '', facilityId: '', location: '', category: 'AUTO',
     description: '', priority: 'AUTO', contactEmail: '', contactPhone: '',
@@ -41,6 +47,24 @@ export default function TicketFormPage() {
   useEffect(() => {
     return () => previews.forEach(url => URL.revokeObjectURL(url));
   }, [previews]);
+
+  useEffect(() => {
+    if (previewIndex === null || !annotationMode || !previews[previewIndex]) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const image = new window.Image();
+    image.onload = () => {
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    };
+    image.src = previews[previewIndex];
+  }, [previewIndex, annotationMode, previews]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -56,6 +80,95 @@ export default function TicketFormPage() {
     URL.revokeObjectURL(previews[index]);
     setAttachments(prev => prev.filter((_, i) => i !== index));
     setPreviews(prev => prev.filter((_, i) => i !== index));
+    if (previewIndex === index) {
+      setPreviewIndex(null);
+      setAnnotationMode(false);
+    } else if (previewIndex !== null && previewIndex > index) {
+      setPreviewIndex(previewIndex - 1);
+    }
+  };
+
+  const updateAttachmentAt = (index: number, nextFile: File) => {
+    setAttachments(prev => prev.map((file, i) => i === index ? nextFile : file));
+    setPreviews(prev => prev.map((url, i) => {
+      if (i !== index) return url;
+      URL.revokeObjectURL(url);
+      return URL.createObjectURL(nextFile);
+    }));
+  };
+
+  const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    isDrawingRef.current = true;
+    ctx.strokeStyle = annotationColor;
+    ctx.lineWidth = annotationBrushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+  };
+
+  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    isDrawingRef.current = false;
+  };
+
+  const resetAnnotation = () => {
+    if (previewIndex === null) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const image = new window.Image();
+    image.onload = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    };
+    image.src = previews[previewIndex];
+  };
+
+  const saveAnnotation = async () => {
+    if (previewIndex === null) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+
+    const original = attachments[previewIndex];
+    const annotatedFile = new File([blob], original.name.replace(/\.[^.]+$/, '') + '-annotated.png', {
+      type: 'image/png',
+    });
+    updateAttachmentAt(previewIndex, annotatedFile);
+    setAnnotationMode(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,6 +195,7 @@ export default function TicketFormPage() {
   };
 
   const pc = priorityColors[form.priority] || priorityColors.AUTO;
+  const modalPreviewSrc = previewIndex !== null ? previews[previewIndex] : null;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -255,12 +369,32 @@ export default function TicketFormPage() {
                     <button
                       type="button"
                       onClick={() => removeAttachment(i)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white transition-opacity"
-                      style={{ background: 'rgba(244,63,94,0.8)' }}
-                      aria-label="Remove attachment"
-                    >
-                      <X className="w-3.5 h-3.5" />
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white transition-opacity"
+                    style={{ background: 'rgba(244,63,94,0.8)' }}
+                    aria-label="Remove attachment"
+                  >
+                    <X className="w-3.5 h-3.5" />
                     </button>
+                    <div className="absolute top-1.5 left-1.5 flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setPreviewIndex(i); setAnnotationMode(false); }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                        style={{ background: 'rgba(15,23,42,0.75)' }}
+                        aria-label="Preview attachment"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setPreviewIndex(i); setAnnotationMode(true); }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                        style={{ background: 'rgba(124,58,237,0.85)' }}
+                        aria-label="Annotate attachment"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <div className="absolute bottom-1.5 left-1.5 text-xs text-white px-2 py-0.5 rounded-full font-medium"
                       style={{ background: 'rgba(0,0,0,0.6)' }}>
                       {attachments[i].name.length > 12 ? attachments[i].name.slice(0, 12) + '…' : attachments[i].name}
@@ -306,6 +440,111 @@ export default function TicketFormPage() {
           </div>
         </form>
       </LiquidGlassCard>
+
+      <AnimatePresence>
+        {previewIndex !== null && modalPreviewSrc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(2, 6, 23, 0.82)', backdropFilter: 'blur(10px)' }}
+            onClick={() => { setPreviewIndex(null); setAnnotationMode(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 18 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 18 }}
+              className="w-full max-w-5xl rounded-3xl p-5"
+              style={{
+                background: 'rgba(15, 23, 42, 0.92)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Evidence Preview</h2>
+                  <p className="text-sm text-slate-400">
+                    {annotationMode ? 'Draw arrows or marks directly on the image, then save the annotated version.' : 'Review the uploaded evidence image or open annotation mode.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!annotationMode && (
+                    <NeuButton size="sm" variant="secondary" onClick={() => setAnnotationMode(true)} icon={<Pencil className="w-4 h-4" />} iconPosition="left">
+                      Annotate
+                    </NeuButton>
+                  )}
+                  {annotationMode && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setAnnotationColor('#ef4444')}
+                        className="w-9 h-9 rounded-full border"
+                        style={{ background: '#ef4444', borderColor: annotationColor === '#ef4444' ? 'white' : 'rgba(255,255,255,0.2)' }}
+                        aria-label="Red annotation"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAnnotationColor('#facc15')}
+                        className="w-9 h-9 rounded-full border"
+                        style={{ background: '#facc15', borderColor: annotationColor === '#facc15' ? 'white' : 'rgba(255,255,255,0.2)' }}
+                        aria-label="Yellow annotation"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAnnotationColor('#22c55e')}
+                        className="w-9 h-9 rounded-full border"
+                        style={{ background: '#22c55e', borderColor: annotationColor === '#22c55e' ? 'white' : 'rgba(255,255,255,0.2)' }}
+                        aria-label="Green annotation"
+                      />
+                      <select
+                        value={annotationBrushSize}
+                        onChange={e => setAnnotationBrushSize(Number(e.target.value))}
+                        className="glass-select px-3 py-2 rounded-xl text-sm"
+                      >
+                        <option value={2}>Thin</option>
+                        <option value={4}>Medium</option>
+                        <option value={7}>Bold</option>
+                      </select>
+                      <NeuButton size="sm" variant="ghost" onClick={resetAnnotation} icon={<RotateCcw className="w-4 h-4" />} iconPosition="left">
+                        Reset
+                      </NeuButton>
+                      <NeuButton size="sm" variant="primary" onClick={saveAnnotation} icon={<Check className="w-4 h-4" />} iconPosition="left">
+                        Save
+                      </NeuButton>
+                    </>
+                  )}
+                  <NeuButton size="sm" variant="ghost" onClick={() => { setPreviewIndex(null); setAnnotationMode(false); }}>
+                    Close
+                  </NeuButton>
+                </div>
+              </div>
+
+              <div className="rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center p-3">
+                {annotationMode ? (
+                  <canvas
+                    ref={canvasRef}
+                    className="w-full max-h-[70vh] rounded-xl touch-none"
+                    style={{ cursor: 'crosshair' }}
+                    onPointerDown={startDrawing}
+                    onPointerMove={draw}
+                    onPointerUp={stopDrawing}
+                    onPointerLeave={stopDrawing}
+                  />
+                ) : (
+                  <img
+                    src={modalPreviewSrc}
+                    alt={`Attachment ${previewIndex + 1}`}
+                    className="w-full max-h-[70vh] object-contain rounded-xl"
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
