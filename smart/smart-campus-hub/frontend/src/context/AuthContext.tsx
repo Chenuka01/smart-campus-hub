@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from '@/lib/api';
 import type { AuthResponse } from '@/lib/types';
+import { clearStoredAuth, getStoredToken, persistAuth } from '@/lib/authStorage';
 
 interface AuthContextType {
   user: AuthResponse | null;
@@ -35,40 +36,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    let active = true;
+
+    const restoreSession = async () => {
+      const token = getStoredToken();
+
+      if (!token) {
+        if (active) {
+          setLoading(false);
+        }
+        return;
       }
-    }
-    setLoading(false);
+
+      try {
+        const res = await authApi.getMe();
+        const authData: AuthResponse = { ...res.data, token };
+        persistAuth(authData);
+
+        if (active) {
+          setUser(authData);
+        }
+      } catch {
+        clearStoredAuth();
+
+        if (active) {
+          setUser(null);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);
     const data = res.data;
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data));
+    persistAuth(data);
     setUser(data);
   };
 
   const register = async (name: string, email: string, password: string) => {
     const res = await authApi.register(name, email, password);
     const data = res.data;
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data));
+    persistAuth(data);
     setUser(data);
   };
 
   const googleLogin = async (data: { email: string; name: string; avatarUrl: string; providerId: string }) => {
     const res = await authApi.googleAuth(data);
     const authData = res.data;
-    localStorage.setItem('token', authData.token);
-    localStorage.setItem('user', JSON.stringify(authData));
+    persistAuth(authData);
     setUser(authData);
   };
 
@@ -76,20 +101,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const googleLoginWithToken = async (credential: string) => {
     const res = await authApi.googleVerify(credential);
     const authData = res.data;
-    localStorage.setItem('token', authData.token);
-    localStorage.setItem('user', JSON.stringify(authData));
+    persistAuth(authData);
     setUser(authData);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearStoredAuth();
     setUser(null);
   };
 
   const updateUser = (data: AuthResponse) => {
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data));
+    persistAuth(data);
     setUser(data);
   };
 
