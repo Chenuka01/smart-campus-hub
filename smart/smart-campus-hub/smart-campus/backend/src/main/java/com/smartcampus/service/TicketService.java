@@ -18,12 +18,15 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final NotificationService notificationService;
     private final TicketClassificationService ticketClassificationService;
+    private final TechnicianAutoAssignmentService technicianAutoAssignmentService;
 
     public TicketService(TicketRepository ticketRepository, NotificationService notificationService,
-                         TicketClassificationService ticketClassificationService) {
+                         TicketClassificationService ticketClassificationService,
+                         TechnicianAutoAssignmentService technicianAutoAssignmentService) {
         this.ticketRepository = ticketRepository;
         this.notificationService = notificationService;
         this.ticketClassificationService = ticketClassificationService;
+        this.technicianAutoAssignmentService = technicianAutoAssignmentService;
     }
 
     public Ticket createTicket(TicketRequest request, User user, List<String> attachmentUrls) {
@@ -48,8 +51,11 @@ public class TicketService {
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
         applySlaPolicy(ticket, now);
+        User autoAssignedTechnician = autoAssignTechnician(ticket);
 
-        return applySlaState(ticketRepository.save(ticket));
+        Ticket savedTicket = ticketRepository.save(ticket);
+        sendAutoAssignmentNotifications(savedTicket, autoAssignedTechnician);
+        return applySlaState(savedTicket);
     }
 
     public Ticket assignTicket(String ticketId, String technicianId, String technicianName) {
@@ -221,6 +227,37 @@ public class TicketService {
         ticket.setSlaTargetMinutes(slaTargetMinutes);
         ticket.setSlaDueAt(baseTime.plusMinutes(slaTargetMinutes));
         ticket.setSlaMet(null);
+    }
+
+    private User autoAssignTechnician(Ticket ticket) {
+        return technicianAutoAssignmentService.findBestTechnicianForCategory(ticket.getCategory())
+                .map(technician -> {
+                    ticket.setAssignedTo(technician.getId());
+                    ticket.setAssignedToName(technician.getName());
+                    ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+                    return technician;
+                })
+                .orElse(null);
+    }
+
+    private void sendAutoAssignmentNotifications(Ticket ticket, User technician) {
+        if (technician == null) {
+            return;
+        }
+
+        notificationService.createNotification(
+                ticket.getReportedBy(),
+                "Ticket Auto-Assigned",
+                "Your ticket '" + ticket.getTitle() + "' was automatically assigned to " + technician.getName(),
+                Notification.NotificationType.TICKET_ASSIGNED,
+                ticket.getId(), "TICKET");
+
+        notificationService.createNotification(
+                technician.getId(),
+                "New Auto-Assigned Ticket",
+                "A " + ticket.getCategory() + " ticket has been automatically assigned to you: " + ticket.getTitle(),
+                Notification.NotificationType.TICKET_ASSIGNED,
+                ticket.getId(), "TICKET");
     }
 
     private Ticket applySlaState(Ticket ticket) {

@@ -70,11 +70,20 @@ public class DataInitializer implements CommandLineRunner {
             tech.setPassword(passwordEncoder.encode("tech123"));
             tech.setProvider("LOCAL");
             tech.setRoles(Set.of(User.Role.TECHNICIAN));
+            tech.setTechnicianSpecialties(Set.of("Electrical", "HVAC", "IT Equipment", "Safety"));
             tech.setEnabled(true);
             tech.setCreatedAt(LocalDateTime.now());
             tech.setUpdatedAt(LocalDateTime.now());
             userRepository.save(tech);
             System.out.println("Technician user created: tech@smartcampus.com / tech123");
+        } else {
+            userRepository.findByEmail("tech@smartcampus.com").ifPresent(tech -> {
+                if (tech.getTechnicianSpecialties() == null || tech.getTechnicianSpecialties().isEmpty()) {
+                    tech.setTechnicianSpecialties(Set.of("Electrical", "HVAC", "IT Equipment", "Safety"));
+                    tech.setUpdatedAt(LocalDateTime.now());
+                    userRepository.save(tech);
+                }
+            });
         }
 
         if (userRepository.count() <= 1) {

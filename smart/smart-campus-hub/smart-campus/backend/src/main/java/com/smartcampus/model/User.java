@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Set;
 
 @Data
@@ -35,6 +36,11 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "role")
     private Set<Role> roles;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_specialties", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "specialty")
+    private Set<String> technicianSpecialties = new HashSet<>();
 
     private boolean enabled = true;
     private LocalDateTime createdAt;
@@ -71,6 +77,7 @@ public class User {
     public String getProvider() { return provider; }
     public String getProviderId() { return providerId; }
     public Set<Role> getRoles() { return roles; }
+    public Set<String> getTechnicianSpecialties() { return technicianSpecialties; }
     public boolean isEnabled() { return enabled; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
@@ -91,6 +98,7 @@ public class User {
     public void setProvider(String provider) { this.provider = provider; }
     public void setProviderId(String providerId) { this.providerId = providerId; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
+    public void setTechnicianSpecialties(Set<String> technicianSpecialties) { this.technicianSpecialties = technicianSpecialties != null ? technicianSpecialties : new HashSet<>(); }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
@@ -107,6 +115,5 @@ public class User {
         USER, ADMIN, TECHNICIAN, MANAGER, SUPER_ADMIN
     }
 }
-
 
 
