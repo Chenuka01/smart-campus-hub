@@ -35,6 +35,7 @@
 @REM Begin all REM lines with '@' in case MAVEN_BATCH_ECHO is 'on'
 @echo off
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 @setlocal
 
 set "ERROR_CODE=0"
@@ -136,5 +137,8 @@ exit /B %ERROR_CODE%
 
 =======
 set MVN_BIN=C:\Users\ayesh\.m2\wrapper\dists\apache-maven-3.9.11\03d7e36a140982eea48e22c1dcac01d8862b2550b2939e09a0809bbc5182a5bc\bin
+=======
+set MVN_BIN=C:\Users\ASUS VIVOBOOK\.m2\wrapper\dists\apache-maven-3.9.11\03d7e36a140982eea48e22c1dcac01d8862b2550b2939e09a0809bbc5182a5bc\bin
+>>>>>>> Stashed changes
 "%MVN_BIN%\mvn.cmd" %*
 >>>>>>> Stashed changes
