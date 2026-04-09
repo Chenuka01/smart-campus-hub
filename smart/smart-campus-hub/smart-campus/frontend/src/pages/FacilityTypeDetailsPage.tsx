@@ -93,7 +93,7 @@ export default function FacilityTypeDetailsPage() {
           </div>
         </div>
         {canManage && (
-          <Link to="/facilities/new">
+          <Link to={`/facilities/new?type=${type}`}>
             <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
               Add {type?.replace(/_/g, ' ')}
             </NeuButton>
@@ -127,16 +127,18 @@ export default function FacilityTypeDetailsPage() {
                   >
                     {facility.status.replace(/_/g, ' ')}
                   </span>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => toggleFavorite(facility.id)}
-                    className="p-1.5 rounded-full bg-black/20 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors"
-                  >
-                    <Heart 
-                      className={`w-4 h-4 transition-colors ${isFavorite(facility.id) ? 'fill-rose-500 text-rose-500' : 'text-white'}`} 
-                    />
-                  </motion.button>
+                  {!canManage && (
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => toggleFavorite(facility.id)}
+                      className="p-1.5 rounded-full bg-black/20 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      <Heart 
+                        className={`w-4 h-4 transition-colors ${isFavorite(facility.id) ? 'fill-rose-500 text-rose-500' : 'text-white'}`} 
+                      />
+                    </motion.button>
+                  )}
                 </div>
                 <div className="absolute bottom-3 left-4 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
