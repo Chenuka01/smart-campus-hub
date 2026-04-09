@@ -82,6 +82,11 @@ export default function FacilitiesPage() {
           <p className="text-slate-400 text-sm mt-1">Browse and manage campus resources</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/facilities/favorites">
+            <NeuButton variant="secondary" size="md" icon={<Heart className="w-4 h-4 fill-rose-500/20 text-rose-500" />} iconPosition="left">
+              My Favorites
+            </NeuButton>
+          </Link>
           {canManage && (
             <Link to="/facilities/analytics">
               <NeuButton variant="secondary" size="md" icon={<BarChart3 className="w-4 h-4" />} iconPosition="left">
