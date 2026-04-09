@@ -5,8 +5,6 @@ import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import FacilitiesPage from '@/pages/FacilitiesPage';
-import FacilityTypeDetailsPage from '@/pages/FacilityTypeDetailsPage';
-import FavoritesPage from '@/pages/FavoritesPage';
 import FacilityFormPage from '@/pages/FacilityFormPage';
 import BookingsPage from '@/pages/BookingsPage';
 import BookingFormPage from '@/pages/BookingFormPage';
@@ -19,24 +17,20 @@ import ProfilePage from '@/pages/ProfilePage';
 import TechnicianPage from '@/pages/TechnicianPage';
 import AnalyticsDashboardPage from '@/pages/AnalyticsDashboardPage';
 
-function FullscreenLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    </div>
-  );
-}
-
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-
+  
   if (loading) {
-    return <FullscreenLoader />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+          <p className="text-sm text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
   }
-
+  
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -44,40 +38,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isManager, loading } = useAuth();
-
-  if (loading) {
-    return <FullscreenLoader />;
-  }
-
-  if (!isAdmin && !isManager) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <Layout>{children}</Layout>;
-}
-
 import { AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
 function AppRoutes() {
-  const { isAuthenticated, isTechnician, loading } = useAuth();
+  const { isAuthenticated, isTechnician } = useAuth();
   const location = useLocation();
 
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route
-          path="/login"
-          element={loading ? <FullscreenLoader /> : isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-        />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
         
         <Route path="/dashboard" element={<ProtectedRoute>{isTechnician ? <Navigate to="/technician" replace /> : <DashboardPage />}</ProtectedRoute>} />
         
         <Route path="/facilities" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
-        <Route path="/facilities/type/:type" element={<ProtectedRoute><FacilityTypeDetailsPage /></ProtectedRoute>} />
-        <Route path="/facilities/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
         <Route path="/facilities/new" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/edit/:id" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/analytics" element={<ProtectedRoute><AnalyticsDashboardPage /></ProtectedRoute>} />
@@ -91,7 +66,7 @@ function AppRoutes() {
         
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
-        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/technician" element={<ProtectedRoute><TechnicianPage /></ProtectedRoute>} />
         
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

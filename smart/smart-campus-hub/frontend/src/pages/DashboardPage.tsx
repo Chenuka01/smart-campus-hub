@@ -315,11 +315,10 @@ export default function DashboardPage() {
         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { to: '/bookings/new', label: 'Book a Facility', desc: 'Reserve rooms & equipment', gradient: 'from-blue-500 to-cyan-500', glow: 'rgba(59,130,246,0.3)', icon: CalendarDays, hideForAdmin: true },
-            { to: '/tickets/new', label: 'Report an Issue', desc: 'Create maintenance ticket', gradient: 'from-amber-500 to-orange-500', glow: 'rgba(245,158,11,0.3)', icon: TicketIcon, hideForAdmin: false },
-            { to: '/facilities', label: 'Browse Facilities', desc: 'Explore campus resources', gradient: 'from-emerald-500 to-teal-500', glow: 'rgba(16,185,129,0.3)', icon: Building2, hideForAdmin: false },
+            { to: '/bookings/new', label: 'Book a Facility', desc: 'Reserve rooms & equipment', gradient: 'from-blue-500 to-cyan-500', glow: 'rgba(59,130,246,0.3)', icon: CalendarDays },
+            { to: '/tickets/new', label: 'Report an Issue', desc: 'Create maintenance ticket', gradient: 'from-amber-500 to-orange-500', glow: 'rgba(245,158,11,0.3)', icon: TicketIcon },
+            { to: '/facilities', label: 'Browse Facilities', desc: 'Explore campus resources', gradient: 'from-emerald-500 to-teal-500', glow: 'rgba(16,185,129,0.3)', icon: Building2 },
           ].map((action) => {
-            if (action.hideForAdmin && (isAdmin || isManager)) return null;
             const Icon = action.icon;
             return (
               <Link key={action.to} to={action.to}>
