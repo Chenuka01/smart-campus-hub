@@ -17,8 +17,16 @@ const glassTooltipStyle = {
   fontSize: '12px',
 };
 
+// Priority Sort Order
+const priorityOrder: Record<string, number> = {
+  'CRITICAL': 0,
+  'HIGH': 1,
+  'MEDIUM': 2,
+  'LOW': 3
+};
+
 export default function AdminPage() {
-  const { user: currentUser, isSuperAdmin, isAdmin, isManager } = useAuth();
+  const { user: currentUser, isSuperAdmin, isAdmin, isManager, isTechnician } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -38,23 +46,76 @@ export default function AdminPage() {
   const [bookingSearch, setBookingSearch] = useState('');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('ALL');
 
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('ALL');
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState('ALL');
+  const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([]);
+  const [ticketActionModal, setTicketActionModal] = useState<{ id: string; currentStatus: string } | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [newStatusSelection, setNewStatusSelection] = useState('');
+  const [ticketAssignModal, setTicketAssignModal] = useState<{ id: string; currentTechnicianId?: string } | null>(null);
+
   useEffect(() => {
-    if (!isAdmin && !isManager) return;
-    Promise.all([authApi.getUsers(), facilityApi.getAll(), bookingApi.getAll(), ticketApi.getAll()])
+    if (!isAdmin && !isManager && !isTechnician) return;
+    setLoading(true);
+    
+    // Explicit list of promises to ensure order and control
+    const fetchUsers = (isAdmin || isSuperAdmin || isManager) ? authApi.getUsers() : Promise.resolve({ data: [] });
+    
+    Promise.all([
+      fetchUsers,
+      facilityApi.getAll(),
+      bookingApi.getAll(),
+      ticketApi.getAll()
+    ])
       .then(([ur, fr, br, tr]) => {
-        setUsers(ur.data); setFacilities(fr.data); setBookings(br.data); setTickets(tr.data);
-      }).catch(() => {}).finally(() => setLoading(false));
-  }, [isAdmin, isManager]);
+        setUsers(ur.data);
+        setFacilities(fr.data);
+        setBookings(br.data);
+        setTickets(tr.data);
+      }).catch(err => {
+        console.error("Failed to load admin data", err);
+      }).finally(() => setLoading(false));
+  }, [isAdmin, isManager, isSuperAdmin]);
+
+  const refreshData = async (tab: string) => {
+    try {
+      switch(tab) {
+        case 'users': { const res = await authApi.getUsers(); setUsers(res.data); break; }
+        case 'facilities': { const res = await facilityApi.getAll(); setFacilities(res.data); break; }
+        case 'bookings': { const res = await bookingApi.getAll(); setBookings(res.data); break; }
+        case 'tickets': { const res = await ticketApi.getAll(); setTickets(res.data); break; }
+      }
+    } catch (err) {
+      console.error(`Failed to refresh ${tab} data`, err);
+    }
+  };
 
   const handleUpdateRoles = async () => {
     if (!roleModal) return;
     try {
       await authApi.updateUserRoles(roleModal.userId, selectedRoles);
-      const res = await authApi.getUsers();
-      setUsers(res.data);
+      await refreshData('users');
       setRoleModal(null);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update roles');
+    }
+  };
+
+  const handleAssignTicket = async (id: string, techId: string, techName: string) => {
+    try {
+      // Optimistically update the UI to show the assignment immediately
+      setTickets(prev => prev.map(t => 
+        t.id === id ? { ...t, assignedTo: techId, assignedToName: techName, status: 'IN_PROGRESS' } : t
+      ));
+      setTicketAssignModal(null);
+      
+      await ticketApi.assign(id, techId, techName);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to assign ticket');
+      // Revert if it fails
+      refreshData('tickets');
     }
   };
 
@@ -66,16 +127,16 @@ export default function AdminPage() {
     if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     try {
       await authApi.deleteUser(userId);
-      setUsers(users.filter(u => u.id !== userId));
+      await refreshData('users');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to delete user');
     }
   };
 
-  if (!isAdmin && !isManager) return (
+  if (!isAdmin && !isManager && !isTechnician) return (
     <div className="text-center py-20">
       <Shield className="w-12 h-12 mx-auto mb-3 text-slate-700" />
-      <p className="text-slate-400 font-semibold">Admin access required</p>
+      <p className="text-slate-400 font-semibold">Staff access required</p>
     </div>
   );
 
@@ -116,6 +177,7 @@ export default function AdminPage() {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'facilities', label: 'Facilities', icon: Building2 },
     { id: 'bookings', label: 'Bookings', icon: CalendarDays },
+    { id: 'tickets', label: 'Tickets', icon: TicketIcon },
     { id: 'analytics', label: 'Analytics', icon: PieChart },
   ];
 
@@ -125,6 +187,8 @@ export default function AdminPage() {
     const matchesRole = userRoleFilter === 'ALL' || (u.roles && u.roles.includes(userRoleFilter));
     return matchesSearch && matchesRole;
   });
+
+  const staffList = users.filter(u => u.roles?.some(r => ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN'].includes(r)));
 
   const filteredFacilities = facilities.filter(f => {
     const matchesSearch = f.name?.toLowerCase().includes(facilitySearch.toLowerCase());
@@ -139,11 +203,59 @@ export default function AdminPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const filteredTicketsList = tickets
+    .filter(t => {
+      const matchesSearch = t.title?.toLowerCase().includes(ticketSearch.toLowerCase()) ||
+                            t.reportedByName?.toLowerCase().includes(ticketSearch.toLowerCase()) ||
+                            t.description?.toLowerCase().includes(ticketSearch.toLowerCase());
+      const matchesStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;
+      const matchesPriority = ticketPriorityFilter === 'ALL' || t.priority === ticketPriorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    })
+    .sort((a, b) => (priorityOrder[a.priority] ?? 5) - (priorityOrder[b.priority] ?? 5));
+
+  const handleBulkDelete = async () => {
+    if (selectedTicketIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedTicketIds.length} tickets?`)) return;
+    try {
+      await ticketApi.bulkDelete(selectedTicketIds);
+      await refreshData('tickets');
+      setSelectedTicketIds([]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to bulk delete tickets');
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Are you sure you want to clear all CLOSED and RESOLVED tickets?')) return;
+    try {
+      await ticketApi.clearHistory();
+      await refreshData('tickets');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to clear history');
+    }
+  };
+
+  const handleUpdateTicketStatus = async () => {
+    if (!ticketActionModal || !newStatusSelection) return;
+    try {
+      await ticketApi.updateStatus(ticketActionModal.id, newStatusSelection, resolutionNotes, rejectionReason);
+      await refreshData('tickets');
+      setTicketActionModal(null);
+      setNewStatusSelection('');
+      setResolutionNotes('');
+      setRejectionReason('');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update ticket status');
+    }
+  };
+
   const overviewStats = [
     { label: 'Total Users', value: users.length, icon: Users, gradient: 'from-violet-500 to-indigo-500', glow: 'rgba(139,92,246,0.4)' },
     { label: 'Facilities', value: facilities.length, icon: Building2, gradient: 'from-blue-500 to-cyan-500', glow: 'rgba(59,130,246,0.4)' },
     { label: 'Bookings', value: bookings.length, icon: CalendarDays, gradient: 'from-emerald-500 to-teal-500', glow: 'rgba(16,185,129,0.4)' },
-    { label: 'Tickets', value: tickets.length, icon: TicketIcon, gradient: 'from-amber-500 to-orange-500', glow: 'rgba(245,158,11,0.4)' },
+    { label: 'Open Tickets', value: tickets.filter(t => t.status === 'OPEN').length, icon: AlertTriangle, gradient: 'from-rose-500 to-orange-500', glow: 'rgba(244,63,94,0.4)' },
+    { label: 'Total Tickets', value: tickets.length, icon: TicketIcon, gradient: 'from-amber-500 to-orange-500', glow: 'rgba(245,158,11,0.4)' },
   ];
 
   return (
@@ -163,9 +275,10 @@ export default function AdminPage() {
       </motion.div>
 
       {/* Tabs */}
-      <motion.div variants={itemVariants} className="flex gap-1 p-1 rounded-2xl" style={{ background: 'rgba(0,0,0,0.2)' }}>
+      <motion.div variants={itemVariants} className="flex gap-1 p-1 rounded-2xl overflow-x-auto" style={{ background: 'rgba(0,0,0,0.2)' }}>
         {tabs.map(tab => {
           if (tab.id === 'users' && !isSuperAdmin && !isAdmin) return null;
+          if (isTechnician && ['facilities', 'bookings'].includes(tab.id)) return null;
           const Icon = tab.icon;
           return (
             <motion.button
@@ -582,7 +695,7 @@ export default function AdminPage() {
                                <>
                                  <button onClick={async () => {
                                    await bookingApi.approve(b.id);
-                                   const res = await bookingApi.getAll(); setBookings(res.data);
+                                   await refreshData('bookings');
                                  }} className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-400/10 transition-colors">
                                    <CheckCircle className="w-4 h-4" />
                                  </button>
@@ -590,7 +703,7 @@ export default function AdminPage() {
                                    const reason = prompt('Rejection reason:');
                                    if(reason) {
                                      await bookingApi.reject(b.id, reason);
-                                     const res = await bookingApi.getAll(); setBookings(res.data);
+                                     await refreshData('bookings');
                                    }
                                  }} className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors">
                                    <AlertTriangle className="w-4 h-4" />
@@ -605,6 +718,330 @@ export default function AdminPage() {
                 </table>
               </div>
             </LiquidGlassCard>
+          </motion.div>
+        )}
+
+        {/* Tickets Tab */}
+        {activeTab === 'tickets' && (
+          <motion.div key="tickets" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <div className="flex flex-col lg:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search tickets by title, reporter, or content..."
+                  value={ticketSearch}
+                  onChange={(e) => setTicketSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-1 lg:pb-0">
+                <select
+                  value={ticketStatusFilter}
+                  onChange={(e) => setTicketStatusFilter(e.target.value)}
+                  className="pl-4 pr-10 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 appearance-none transition-colors"
+                >
+                  <option value="ALL" className="bg-slate-900">All Statuses</option>
+                  {['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'].map(s => (
+                    <option key={s} value={s} className="bg-slate-900">{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
+                <select
+                  value={ticketPriorityFilter}
+                  onChange={(e) => setTicketPriorityFilter(e.target.value)}
+                  className="pl-4 pr-10 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 appearance-none transition-colors"
+                >
+                  <option value="ALL" className="bg-slate-900">All Priorities</option>
+                  {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map(p => (
+                    <option key={p} value={p} className="bg-slate-900">{p}</option>
+                  ))}
+                </select>
+
+                <NeuButton
+                  onClick={handleBulkDelete}
+                  disabled={selectedTicketIds.length === 0}
+                  variant="secondary"
+                  className="!px-4 !py-2 !text-xs !bg-rose-500/10 !text-rose-400 !border-rose-500/20 disabled:opacity-30"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-2" /> Bulk Delete ({selectedTicketIds.length})
+                </NeuButton>
+
+                {isSuperAdmin && (
+                  <NeuButton
+                    onClick={handleClearHistory}
+                    variant="secondary"
+                    className="!px-4 !py-2 !text-xs !bg-amber-500/10 !text-amber-400 !border-amber-500/20"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" /> Clear History
+                  </NeuButton>
+                )}
+              </div>
+            </div>
+
+            <LiquidGlassCard className="overflow-hidden" depth={2}>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <th className="px-4 py-3 text-left w-10">
+                        <input
+                          type="checkbox"
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTicketIds(filteredTicketsList.map(t => t.id));
+                            } else {
+                              setSelectedTicketIds([]);
+                            }
+                          }}
+                          checked={selectedTicketIds.length === filteredTicketsList.length && filteredTicketsList.length > 0}
+                          className="rounded border-white/10 bg-white/5 text-violet-500 focus:ring-violet-500/30"
+                        />
+                      </th>
+                      {['Ticket info', 'Status', 'Priority', 'Reporter', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTicketsList.map((t, i) => (
+                      <motion.tr
+                        key={t.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="transition-colors group hover:bg-white/5"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedTicketIds.includes(t.id)}
+                            onChange={() => {
+                              setSelectedTicketIds(prev =>
+                                prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                              );
+                            }}
+                            className="rounded border-white/10 bg-white/5 text-violet-500 focus:ring-violet-500/30"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-white group-hover:text-violet-300 transition-colors">
+                              {t.title}
+                            </span>
+                            <span className="text-[10px] text-slate-500 mt-1 font-mono uppercase tracking-tighter">
+                              ID: {t.id.slice(0,8)}... • {t.category}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full border ${
+                            t.status === 'OPEN' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' :
+                            t.status === 'IN_PROGRESS' ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' :
+                            t.status === 'RESOLVED' ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' :
+                            t.status === 'CLOSED' ? 'bg-slate-400/10 text-slate-400 border-slate-400/20' :
+                            'bg-rose-400/10 text-rose-400 border-rose-400/20'
+                          }`}>
+                            {t.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${
+                             t.priority === 'CRITICAL' ? 'bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)]' :
+                             t.priority === 'HIGH' ? 'bg-orange-400 text-white' :
+                             t.priority === 'MEDIUM' ? 'bg-amber-400 text-slate-900' :
+                             'bg-slate-600 text-white'
+                          }`}>
+                             {t.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-slate-300">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-white text-xs">{t.reportedByName}</span>
+                            <span className="text-[10px] text-slate-500">{new Date(t.createdAt).toLocaleDateString()}</span>
+                            {t.assignedToName && (
+                              <span className="text-[10px] text-violet-400 mt-0.5">Assigned: {t.assignedToName}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1">
+                            {t.status !== 'CLOSED' && (
+                              <button
+                                onClick={() => {
+                                  setTicketActionModal({ id: t.id, currentStatus: t.status });
+                                  setNewStatusSelection('');
+                                }}
+                                className="p-1.5 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-all"
+                                title="Update Status"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                               onClick={() => setTicketAssignModal({ id: t.id, currentTechnicianId: t.assignedTo })}
+                               className="p-1.5 rounded-lg text-violet-400 hover:bg-violet-400/10 transition-all"
+                               title="Assign Staff"
+                            >
+                               <Users className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => window.open(`/tickets/${t.id}`, '_blank')}
+                              className="p-1.5 rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition-all"
+                              title="View Details"
+                            >
+                              <Search className="w-4 h-4" />
+                            </button>
+                            {(isAdmin || isManager) && (
+                              <button
+                                onClick={async () => {
+                                  if(!window.confirm('Delete this ticket?')) return;
+                                  await ticketApi.delete(t.id);
+                                  await refreshData('tickets');
+                                }}
+                                className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-all"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredTicketsList.length === 0 && (
+                <div className="py-20 text-center">
+                  <TicketIcon className="w-10 h-10 text-slate-700 mx-auto mb-3 opacity-20" />
+                  <p className="text-slate-500 text-sm font-medium">No tickets matching your search/filters</p>
+                </div>
+              )}
+            </LiquidGlassCard>
+
+            {/* Ticket Status Transition Modal */}
+            <AnimatePresence>
+              {ticketActionModal && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+                  onClick={() => setTicketActionModal(null)}>
+                  <motion.div
+                    initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                    className="w-full max-w-md rounded-3xl p-6 bg-slate-900 border border-white/10"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <h3 className="text-xl font-bold text-white mb-4">Update Ticket Status</h3>
+                    <p className="text-sm text-slate-400 mb-6">Current Status: <span className="text-violet-400 font-bold">{ticketActionModal.currentStatus}</span></p>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Next Status</label>
+                        <select
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50"
+                          value={newStatusSelection}
+                          onChange={(e) => setNewStatusSelection(e.target.value)}
+                        >
+                          <option value="" disabled className="bg-slate-900">Select transition...</option>
+                          {ticketActionModal.currentStatus === 'OPEN' && (
+                            <>
+                              <option value="IN_PROGRESS" className="bg-slate-900">Move to In Progress</option>
+                              <option value="REJECTED" className="bg-slate-900">Reject Ticket</option>
+                            </>
+                          )}
+                          {ticketActionModal.currentStatus === 'IN_PROGRESS' && (
+                            <option value="RESOLVED" className="bg-slate-900">Move to Resolved</option>
+                          )}
+                          {ticketActionModal.currentStatus === 'RESOLVED' && (
+                            <option value="CLOSED" className="bg-slate-900">Final Close</option>
+                          )}
+                        </select>
+                      </div>
+
+                      {newStatusSelection === 'RESOLVED' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Resolution Notes</label>
+                          <textarea
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 h-24"
+                            placeholder="Describe how the issue was resolved..."
+                            value={resolutionNotes}
+                            onChange={(e) => setResolutionNotes(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      {newStatusSelection === 'REJECTED' && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rejection Reason</label>
+                          <textarea
+                            className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 h-24"
+                            placeholder="Reason for rejecting this request..."
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 pt-4">
+                        <NeuButton onClick={() => setTicketActionModal(null)} variant="ghost" className="flex-1">Cancel</NeuButton>
+                        <NeuButton 
+                          onClick={handleUpdateTicketStatus} 
+                          variant="primary" 
+                          className="flex-1"
+                          disabled={!newStatusSelection || (newStatusSelection === 'RESOLVED' && !resolutionNotes) || (newStatusSelection === 'REJECTED' && !rejectionReason)}
+                        >
+                          Update Workflow
+                        </NeuButton>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Ticket Assignment Modal */}
+            <AnimatePresence>
+              {ticketAssignModal && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+                  onClick={() => setTicketAssignModal(null)}>
+                  <motion.div
+                    initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                    className="w-full max-w-md rounded-3xl p-6 bg-slate-900 border border-white/10"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <h3 className="text-xl font-bold text-white mb-4">Assign Staff</h3>
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {staffList.map(staff => (
+                        <button
+                          key={staff.id}
+                          onClick={() => handleAssignTicket(ticketAssignModal.id, staff.id, staff.name)}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+                            ticketAssignModal.currentTechnicianId === staff.id 
+                              ? 'bg-violet-500/20 border-violet-500/40' 
+                              : 'bg-white/5 border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center text-xs font-bold text-violet-400">
+                              {staff.name.charAt(0)}
+                            </div>
+                            <div className="text-left">
+                              <p className="text-sm font-semibold text-white">{staff.name}</p>
+                              <p className="text-[10px] text-slate-500 font-mono italic">{staff.roles?.join(', ')}</p>
+                            </div>
+                          </div>
+                          {ticketAssignModal.currentTechnicianId === staff.id && <CheckCircle className="w-4 h-4 text-violet-400" />}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 pt-6">
+                      <NeuButton onClick={() => setTicketAssignModal(null)} variant="ghost" className="flex-1">Cancel</NeuButton>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 
@@ -631,7 +1068,8 @@ export default function AdminPage() {
                   {[
                     { label: 'Active Facilities', value: facilities.filter(f => f.status === 'ACTIVE').length, total: facilities.length, color: '#10b981', glow: 'rgba(16,185,129,0.4)' },
                     { label: 'Pending Bookings', value: bookings.filter(b => b.status === 'PENDING').length, total: bookings.length, color: '#f59e0b', glow: 'rgba(245,158,11,0.4)' },
-                    { label: 'Open Tickets', value: tickets.filter(t => t.status === 'OPEN').length, total: tickets.length, color: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
+                    { label: 'Open Tickets', value: tickets.filter(t => t.status === 'OPEN').length, total: tickets.filter(t => t.status !== 'CLOSED' && t.status !== 'REJECTED').length, color: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
+                    { label: 'In Progress', value: tickets.filter(t => t.status === 'IN_PROGRESS').length, total: tickets.filter(t => t.status !== 'CLOSED' && t.status !== 'REJECTED').length, color: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },
                     { label: 'Critical Tickets', value: tickets.filter(t => t.priority === 'CRITICAL').length, total: tickets.length, color: '#f43f5e', glow: 'rgba(244,63,94,0.4)' },
                   ].map(stat => (
                     <div key={stat.label}>

@@ -97,7 +97,7 @@ public class AuthController {
     }
 
     @GetMapping("/users")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());
     }

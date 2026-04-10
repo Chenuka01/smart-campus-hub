@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi, authApi } from '@/lib/api';
 import type { Ticket, User } from '@/lib/types';
-import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, ArrowRight } from 'lucide-react';
+import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, ArrowRight, Search, Calendar, MapPin, Tag } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
@@ -33,11 +33,18 @@ const glassModal = {
 };
 
 export default function TicketsPage() {
-  const { isAdmin, isTechnician, isManager } = useAuth();
+  const { user: currentUser, isAdmin, isTechnician, isManager, isSuperAdmin } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [assignedRoleFilter, setAssignedRoleFilter] = useState('');
+
   const [assignModal, setAssignModal] = useState<string | null>(null);
   const [statusModal, setStatusModal] = useState<{ id: string; currentStatus: string } | null>(null);
   const [selectedTech, setSelectedTech] = useState('');
@@ -48,15 +55,30 @@ export default function TicketsPage() {
 
   useEffect(() => {
     fetchTickets();
-    if (isAdmin || isManager) authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
-  }, [isAdmin, isTechnician, isManager]);
+    if (isAdmin || isManager || isTechnician || isSuperAdmin) {
+      authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
+    }
+  }, [isAdmin, isTechnician, isManager, isSuperAdmin]);
 
   const fetchTickets = async () => {
     try {
-      const res = (isAdmin || isTechnician || isManager) ? await ticketApi.getAll() : await ticketApi.getMy();
+      const res = (isAdmin || isTechnician || isManager || isSuperAdmin) ? await ticketApi.getAll() : await ticketApi.getMy();
+      // Ensure we sort by most recent or specific priority if needed
       setTickets(res.data);
     } catch { /* ignore */ } finally { setLoading(false); }
   };
+
+  const syncWorkflow = async (ticketId: string, targetStatus: string) => {
+    // Helper to automate the workflow: OPEN -> IN_PROGRESS -> RESOLVED -> CLOSED
+    try {
+      await ticketApi.updateStatus(ticketId, targetStatus, "System workflow sync", "");
+      fetchTickets();
+    } catch (err: any) {
+      console.warn(`Workflow sync issue: ${err.response?.data?.message || 'Unauthorized'}`);
+    }
+  };
+
+  const unused = syncWorkflow; // Prevent build errors until used in bulk actions
 
   const handleAssign = async () => {
     if (!assignModal || !selectedTech) return;
@@ -70,16 +92,45 @@ export default function TicketsPage() {
 
   const handleStatusUpdate = async () => {
     if (!statusModal || !newStatus) return;
+    
+    // Validation
+    if ((newStatus === 'RESOLVED' || (newStatus === 'CLOSED' && statusModal.currentStatus === 'IN_PROGRESS')) && !resolutionNotes.trim()) {
+      alert('Please provide resolution notes before completing work.');
+      return;
+    }
+    if (newStatus === 'REJECTED' && !rejectionReason.trim()) {
+      alert('Please provide a reason for rejection.');
+      return;
+    }
+
     setActionLoading(true);
     try {
       await ticketApi.updateStatus(statusModal.id, newStatus, resolutionNotes, rejectionReason);
       setStatusModal(null); setNewStatus(''); setResolutionNotes(''); setRejectionReason(''); fetchTickets();
-    } catch { alert('Failed to update'); } finally { setActionLoading(false); }
+    } catch (err: any) { 
+      alert(err.response?.data?.message || 'Failed to update status'); 
+    } finally { setActionLoading(false); }
   };
 
-  const filtered = tickets.filter(t => !filter || t.status === filter);
-  const technicians = users.filter(u => u.roles?.includes('TECHNICIAN') || u.roles?.includes('ADMIN'));
+  const filtered = tickets.filter(t => {
+    const matchesStatus = !filter || t.status === filter;
+    const isRestrictedStaff = (isManager || isTechnician) && !isAdmin && !isSuperAdmin;
+    const matchesAssignment = isRestrictedStaff ? t.assignedTo === currentUser?.id : true;
+    const matchesSearch = !searchQuery || 
+      t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      t.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDate = !dateFilter || (t.createdAt && t.createdAt.startsWith(dateFilter));
+    const matchesLocation = !locationFilter || (t.location && t.location.toLowerCase().includes(locationFilter.toLowerCase()));
+    const matchesCategory = !categoryFilter || t.category === categoryFilter;
+
+    const matchesRole = !assignedRoleFilter || (t.assignedToName && t.assignedToName.toLowerCase().includes(assignedRoleFilter.toLowerCase()));
+
+    return matchesStatus && matchesAssignment && matchesSearch && matchesDate && matchesLocation && matchesCategory && matchesRole;
+  });
+
+  const technicians = users.filter(u => u.roles?.some(r => ['TECHNICIAN', 'ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(r)));
   const filterTabs = ['', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'];
+  const categories = Array.from(new Set(tickets.map(t => t.category))).filter(Boolean);
 
   if (loading) {
     return (
@@ -98,7 +149,7 @@ export default function TicketsPage() {
             Maintenance <span className="text-gradient">Tickets</span>
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            {(isAdmin || isManager || isTechnician) ? 'Manage and track campus tickets' : 'Report and track issues'}
+            {(isAdmin || isManager || isTechnician || isSuperAdmin) ? 'Manage and track campus tickets' : 'Report and track issues'}
           </p>
         </div>
         <Link to="/tickets/new">
@@ -108,11 +159,56 @@ export default function TicketsPage() {
         </Link>
       </motion.div>
 
-      {/* Filter Tabs */}
+      <motion.div variants={itemVariants} className={`grid grid-cols-1 md:grid-cols-2 ${(isAdmin || isSuperAdmin) ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3`}>
+        <div className="relative group/search">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 transition-colors group-focus-within/search:text-violet-400" />
+          <input
+            type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search tickets..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-600 focus:border-violet-500/50 outline-none transition-all"
+          />
+        </div>
+        {(isAdmin || isSuperAdmin) && (
+          <div className="relative group/role">
+            <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 transition-colors group-focus-within/role:text-violet-400" />
+            <input
+              type="text" value={assignedRoleFilter} onChange={e => setAssignedRoleFilter(e.target.value)}
+              placeholder="Filter by staff name..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-600 focus:border-violet-500/50 outline-none transition-all"
+            />
+          </div>
+        )}
+        <div className="relative group/loc">
+          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 transition-colors group-focus-within/loc:text-violet-400" />
+          <input
+            type="text" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}
+            placeholder="Filter by location..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-600 focus:border-violet-500/50 outline-none transition-all"
+          />
+        </div>
+        <div className="relative group/date">
+          <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within/date:text-violet-400" />
+          <input
+            type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-violet-500/50 [color-scheme:dark]"
+          />
+        </div>
+        <div className="relative group/cat">
+          <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within/cat:text-violet-400" />
+          <select 
+            value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white appearance-none outline-none focus:border-violet-500/50"
+          >
+            <option value="">All Categories</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </motion.div>
+
       <motion.div variants={itemVariants} className="flex flex-wrap gap-2">
         {filterTabs.map(s => {
           const count = s ? tickets.filter(t => t.status === s).length : tickets.length;
-          const cfg = s ? statusConfig[s] : null;
+          const cfg = (s && statusConfig[s]) ? statusConfig[s] : null;
           return (
             <motion.button
               key={s}
@@ -137,19 +233,19 @@ export default function TicketsPage() {
         })}
       </motion.div>
 
-      {/* Tickets List */}
       <div className="space-y-3">
         {filtered.map((ticket, i) => {
           const pCfg = priorityConfig[ticket.priority] || priorityConfig.LOW;
           const sCfg = statusConfig[ticket.status] || statusConfig.OPEN;
           const sla = getTicketSlaSummary(ticket);
+          const dateStr = ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString() : '';
+          
           return (
             <motion.div key={ticket.id} custom={i} variants={scrollRevealVariants} initial="hidden" animate="visible">
               <LiquidGlassCard depth={2}>
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1">
-                      {/* Priority icon with emotional glow */}
                       <div
                         className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${pCfg.pulse ? 'animate-pulse-glow' : ''}`}
                         style={{ background: pCfg.glassColor, border: `1px solid ${pCfg.glow}`, boxShadow: `0 0 12px ${pCfg.glow}` }}
@@ -173,11 +269,15 @@ export default function TicketsPage() {
                         </div>
                         <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{ticket.description}</p>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 font-medium">
-                          <span>{ticket.category}</span>
+                          <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> {ticket.category}</span>
                           <span>·</span>
-                          <span>{ticket.location}</span>
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {ticket.location}</span>
                           <span>·</span>
-                          <span>by {ticket.reportedByName}</span>
+                          <span className="flex items-center gap-1 font-bold text-slate-300">
+                             {dateStr}
+                          </span>
+                          <span>·</span>
+                          <span className="text-slate-400">by {ticket.reportedByName}</span>
                           <span>·</span>
                           <span className={
                             sla.tone === 'bad' ? 'text-rose-400' :
@@ -186,25 +286,25 @@ export default function TicketsPage() {
                           }>
                             SLA: {sla.label}
                           </span>
-                          {ticket.assignedToName && (
-                            <span className="flex items-center gap-1 text-violet-400">
+                          {(isAdmin || isSuperAdmin) && ticket.assignedTo && (
+                            <span className="flex items-center gap-1 text-violet-400/80 bg-violet-400/5 px-2 py-0.5 rounded-lg border border-violet-400/10">
                               <UserIcon className="w-3 h-3" /> {ticket.assignedToName}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      <Link to={`/tickets/${ticket.id}`}>
-                        <NeuButton size="sm" variant="secondary" icon={<ArrowRight className="w-3 h-3" />} iconPosition="right">
+                    <div className="flex flex-col gap-2 flex-shrink-0 min-w-[80px]">
+                      <Link to={`/tickets/${ticket.id}`} className="w-full">
+                        <NeuButton size="sm" variant="secondary" icon={<ArrowRight className="w-3 h-3" />} iconPosition="right" fullWidth>
                           View
                         </NeuButton>
                       </Link>
-                      {(isAdmin || isManager) && !ticket.assignedTo && ticket.status === 'OPEN' && (
-                        <NeuButton size="sm" variant="ghost" onClick={() => setAssignModal(ticket.id)}>Assign</NeuButton>
+                      {(isAdmin || isManager || isTechnician || isSuperAdmin) && !ticket.assignedTo && ticket.status === 'OPEN' && (
+                        <NeuButton size="sm" variant="ghost" onClick={() => setAssignModal(ticket.id)} fullWidth>Assign</NeuButton>
                       )}
-                      {(isAdmin || isTechnician || isManager) && ['OPEN', 'IN_PROGRESS'].includes(ticket.status) && (
-                        <NeuButton size="sm" variant="ghost" onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }}>
+                      {(isAdmin || isTechnician || isManager || isSuperAdmin) && ['OPEN', 'IN_PROGRESS', 'RESOLVED'].includes(ticket.status) && (
+                        <NeuButton size="sm" variant="ghost" onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }} fullWidth>
                           Update
                         </NeuButton>
                       )}
@@ -224,7 +324,6 @@ export default function TicketsPage() {
         </div>
       )}
 
-      {/* Assign Modal */}
       <AnimatePresence>
         {assignModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -238,18 +337,19 @@ export default function TicketsPage() {
               <h3 className="text-xl font-bold text-white mb-5">Assign Technician</h3>
               <select value={selectedTech} onChange={e => setSelectedTech(e.target.value)} className="glass-select w-full px-4 py-3 rounded-xl text-sm mb-5">
                 <option value="">Select technician</option>
-                {technicians.map(t => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+                {technicians.map(tech => (
+                  <option key={tech.id} value={tech.id}>{tech.name} ({tech.roles?.join(', ')})</option>
+                ))}
               </select>
               <div className="flex gap-3">
-                <NeuButton onClick={handleAssign} loading={actionLoading} disabled={!selectedTech} variant="primary" fullWidth>Assign</NeuButton>
-                <NeuButton onClick={() => setAssignModal(null)} variant="ghost">Cancel</NeuButton>
+                <NeuButton onClick={() => setAssignModal(null)} variant="ghost" className="flex-1">Cancel</NeuButton>
+                <NeuButton onClick={handleAssign} variant="primary" className="flex-1" loading={actionLoading}>Confirm</NeuButton>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Status Modal */}
       <AnimatePresence>
         {statusModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -260,27 +360,70 @@ export default function TicketsPage() {
               transition={{ type: 'spring', stiffness: 280, damping: 22 }}
               className="w-full max-w-md rounded-3xl p-6" style={glassModal}
               onClick={e => e.stopPropagation()}>
-              <h3 className="text-xl font-bold text-white mb-5">Update Ticket Status</h3>
+              <h3 className="text-xl font-bold text-white mb-5">Update Status</h3>
               <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="glass-select w-full px-4 py-3 rounded-xl text-sm mb-5">
-                <option value="">Select new status</option>
-                {statusModal.currentStatus === 'OPEN' && <option value="IN_PROGRESS">In Progress</option>}
-                <option value="RESOLVED">Resolved</option>
-                <option value="CLOSED">Closed</option>
-                {(isAdmin || isManager) && <option value="REJECTED">Rejected</option>}
+                <option value="">Choose new status</option>
+                {statusModal.currentStatus === 'OPEN' && (
+                  <>
+                    <option value="IN_PROGRESS">Accept & Start (IN PROGRESS)</option>
+                    {(isAdmin || isSuperAdmin) && <option value="REJECTED">Reject Ticket</option>}
+                    {(isAdmin || isSuperAdmin) && <option value="CLOSED">Direct Close</option>}
+                  </>
+                )}
+                {statusModal.currentStatus === 'IN_PROGRESS' && (
+                  <>
+                    <option value="RESOLVED">Mark as Resolved (Complete Work)</option>
+                    {(isAdmin || isSuperAdmin) && <option value="REJECTED">Reject/Cancel Ticket</option>}
+                    {(isAdmin || isSuperAdmin) && <option value="CLOSED">Force Close</option>}
+                  </>
+                )}
+                {statusModal.currentStatus === 'RESOLVED' && (
+                  <>
+                    <option value="CLOSED">Final Close (Verify & Archive)</option>
+                    {(isAdmin || isSuperAdmin) && <option value="REJECTED">Reject/Undo Resolution</option>}
+                  </>
+                )}
+                {statusModal.currentStatus === 'CLOSED' && (isAdmin || isSuperAdmin) && (
+                  <>
+                    <option value="OPEN">Re-open (Return to Queue)</option>
+                    <option value="REJECTED">Mark as Rejected (Post-Close)</option>
+                  </>
+                )}
+                {statusModal.currentStatus === 'REJECTED' && (
+                  <>
+                    <option value="OPEN">Re-open (Return to Queue)</option>
+                    {(isAdmin || isSuperAdmin) && <option value="CLOSED">Archive/Close</option>}
+                  </>
+                )}
               </select>
-              {(newStatus === 'RESOLVED' || newStatus === 'CLOSED') && (
-                <textarea value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
-                  rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none mb-5"
-                  placeholder="Resolution notes…" />
+
+              {(newStatus === 'RESOLVED' || (newStatus === 'CLOSED' && statusModal.currentStatus === 'IN_PROGRESS')) && (
+                <div className="space-y-2 mb-5">
+                  <label className="text-xs font-semibold text-slate-400 ml-1">Resolution Notes *</label>
+                  <textarea
+                    value={resolutionNotes} onChange={e => setResolutionNotes(e.target.value)}
+                    placeholder="Describe the solution or work performed..."
+                    className="glass-select w-full px-4 py-3 rounded-xl text-sm min-h-[100px]"
+                    required
+                  />
+                </div>
               )}
+
               {newStatus === 'REJECTED' && (
-                <textarea value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
-                  rows={3} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none mb-5"
-                  placeholder="Rejection reason…" />
+                <div className="space-y-2 mb-5">
+                  <label className="text-xs font-semibold text-slate-400 ml-1">Rejection Reason *</label>
+                  <textarea
+                    value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}
+                    placeholder="Why is this ticket being rejected?"
+                    className="glass-select w-full px-4 py-3 rounded-xl text-sm min-h-[100px]"
+                    required
+                  />
+                </div>
               )}
+
               <div className="flex gap-3">
-                <NeuButton onClick={handleStatusUpdate} loading={actionLoading} disabled={!newStatus} variant="primary" fullWidth>Update Status</NeuButton>
-                <NeuButton onClick={() => setStatusModal(null)} variant="ghost">Cancel</NeuButton>
+                <NeuButton onClick={() => setStatusModal(null)} variant="ghost" className="flex-1">Cancel</NeuButton>
+                <NeuButton onClick={handleStatusUpdate} variant="primary" className="flex-1" loading={actionLoading}>Update</NeuButton>
               </div>
             </motion.div>
           </motion.div>
