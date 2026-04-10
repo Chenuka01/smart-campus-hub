@@ -156,10 +156,12 @@ export default function FavoritesPage() {
                     <div className="flex flex-col flex-1 px-1">
                       <p className="text-sm text-slate-400 line-clamp-2 mb-4 leading-relaxed">{facility.description}</p>
                       <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{facility.location}</span>
-                        </div>
+                        {facility.location && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{facility.location}</span>
+                          </div>
+                        )}
                         {facility.capacity > 0 && (
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <Users className="w-3.5 h-3.5 flex-shrink-0" />

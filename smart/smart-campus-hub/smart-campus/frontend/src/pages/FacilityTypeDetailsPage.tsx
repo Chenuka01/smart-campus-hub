@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { facilityApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
 import {
   Building2, MapPin, Users, ArrowLeft, Heart,
-  Monitor, Camera, Laptop, FlaskConical, Presentation, Plus
+  Monitor, Camera, Laptop, FlaskConical, Presentation, Plus, Search, Filter, X, Trash2
 } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
@@ -42,6 +42,16 @@ export default function FacilityTypeDetailsPage() {
   const [loading, setLoading] = useState(true);
   const { toggleFavorite, isFavorite } = useFavorites();
 
+  // Filter & Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [capacityFilter, setCapacityFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+
+  // Delete state
+  const [facilityToDelete, setFacilityToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     if (type) {
       fetchFacilities();
@@ -56,6 +66,50 @@ export default function FacilityTypeDetailsPage() {
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!facilityToDelete) return;
+    setIsDeleting(true);
+    try {
+      await facilityApi.delete(facilityToDelete);
+      // dynamically update list
+      setFacilities(facilities.filter((f) => f.id !== facilityToDelete));
+      setFacilityToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete resource', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const locations = useMemo(() => [...new Set(facilities.map(f => f.location).filter(Boolean))], [facilities]);
+
+  const filteredFacilities = useMemo(() => {
+    return facilities.filter(f => {
+      // Name or Location Search
+      const matchesSearch = 
+        f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        f.location?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Capacity Filter
+      let matchesCapacity = true;
+      if (capacityFilter === '10+') matchesCapacity = f.capacity >= 10;
+      else if (capacityFilter === '20+') matchesCapacity = f.capacity >= 20;
+      else if (capacityFilter === '50+') matchesCapacity = f.capacity >= 50;
+      else if (capacityFilter === '100+') matchesCapacity = f.capacity >= 100;
+
+      // Location Filter
+      const matchesLocation = locationFilter ? f.location === locationFilter : true;
+
+      return matchesSearch && matchesCapacity && matchesLocation;
+    });
+  }, [facilities, searchQuery, capacityFilter, locationFilter]);
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCapacityFilter('');
+    setLocationFilter('');
   };
 
   if (loading) {
@@ -101,9 +155,88 @@ export default function FacilityTypeDetailsPage() {
         )}
       </motion.div>
 
+      {/* Search & Filters */}
+      <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or location..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-white placeholder-slate-400"
+          />
+        </div>
+        <div className="flex gap-3">
+          <NeuButton
+            variant={showFilters ? 'primary' : 'secondary'}
+            size="sm"
+            icon={<Filter className="w-4 h-4" />}
+            onClick={() => setShowFilters(!showFilters)}
+            className="h-full"
+          >
+            Filters
+          </NeuButton>
+          {(searchQuery || capacityFilter || locationFilter) && (
+            <NeuButton
+              variant="secondary"
+              size="sm"
+              icon={<X className="w-4 h-4" />}
+              onClick={clearFilters}
+              className="h-full bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20"
+            >
+              Clear
+            </NeuButton>
+          )}
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="overflow-hidden"
+          >
+            <LiquidGlassCard depth={1} className="p-4 flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Capacity</label>
+                <select
+                  value={capacityFilter}
+                  onChange={(e) => setCapacityFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-white"
+                >
+                  <option value="">Any Capacity</option>
+                  <option value="10+">10+ People</option>
+                  <option value="20+">20+ People</option>
+                  <option value="50+">50+ People</option>
+                  <option value="100+">100+ People</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Location</label>
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 text-white"
+                >
+                  <option value="">All Locations</option>
+                  {locations.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </LiquidGlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Facilities Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {facilities.map((facility, index) => (
+        {filteredFacilities.map((facility, index) => (
           <motion.div
             key={facility.id}
             initial={{ opacity: 0, y: 20 }}
@@ -152,10 +285,12 @@ export default function FacilityTypeDetailsPage() {
               <div className="flex flex-col flex-1 px-1">
                 <p className="text-sm text-slate-400 line-clamp-2 mb-4 leading-relaxed">{facility.description}</p>
                 <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{facility.location}</span>
-                  </div>
+                  {facility.location && (
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{facility.location}</span>
+                    </div>
+                  )}
                   {facility.capacity > 0 && (
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <Users className="w-3.5 h-3.5 flex-shrink-0" />
@@ -174,14 +309,44 @@ export default function FacilityTypeDetailsPage() {
                   </div>
                 )}
 
+                {/* Status Indicator */}
+                {facility.status !== 'ACTIVE' && (
+                  <div className="mb-4 text-center">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                      facility.status === 'UNDER_MAINTENANCE' 
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
+                        : 'bg-red-500/10 text-red-500 border-red-500/20'
+                    }`}>
+                      {facility.status === 'UNDER_MAINTENANCE' ? '🔧 Under Maintenance' : '❌ Out of Service'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex gap-2 mt-auto pt-2">
-                  <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
-                    <NeuButton variant="primary" size="sm" fullWidth>Book Now</NeuButton>
-                  </Link>
-                  {canManage && (
-                    <Link to={`/facilities/edit/${facility.id}`}>
-                      <NeuButton variant="secondary" size="sm">Edit</NeuButton>
+                  {facility.status === 'ACTIVE' && !canManage && (
+                    <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
+                      <NeuButton variant="primary" size="sm" fullWidth>Book Now</NeuButton>
                     </Link>
+                  )}
+                  {facility.status === 'ACTIVE' && canManage && (
+                    <Link to={`/bookings/new?facilityId=${facility.id}`} className="flex-1">
+                      <NeuButton variant="primary" size="sm" fullWidth>Book</NeuButton>
+                    </Link>
+                  )}
+                  {canManage && (
+                    <div className="flex gap-2 flex-1 md:flex-none">
+                      <Link to={`/facilities/edit/${facility.id}`}>
+                        <NeuButton variant="secondary" size="sm">Edit</NeuButton>
+                      </Link>
+                      <NeuButton 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={() => setFacilityToDelete(facility.id)}
+                        className="bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20 flex-1 md:flex-none px-3"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </NeuButton>
+                    </div>
                   )}
                 </div>
               </div>
@@ -190,10 +355,64 @@ export default function FacilityTypeDetailsPage() {
         ))}
       </div>
 
-      {facilities.length === 0 && (
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {facilityToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm p-6 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl"
+            >
+              <h3 className="text-xl font-bold text-white mb-2">Delete Resource</h3>
+              <p className="text-sm text-slate-400 mb-6">
+                Are you sure you want to permanently delete this resource? This action cannot be undone.
+              </p>
+              
+              <div className="flex justify-end gap-3">
+                <NeuButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setFacilityToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </NeuButton>
+                <NeuButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="bg-rose-500 hover:bg-rose-600 text-white shadow-[0_0_15px_rgba(244,63,94,0.4)]"
+                >
+                  {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                </NeuButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {filteredFacilities.length === 0 && (
         <div className="text-center py-20">
           <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-          <p className="text-slate-400 font-semibold">No {type?.replace(/_/g, ' ')}s found</p>
+          <p className="text-slate-400 font-semibold mb-2">No {type?.replace(/_/g, ' ')}s found</p>
+          {(searchQuery || capacityFilter || locationFilter) && (
+            <NeuButton
+              variant="secondary"
+              size="sm"
+              onClick={clearFilters}
+              className="mx-auto"
+            >
+              Clear Filters
+            </NeuButton>
+          )}
         </div>
       )}
     </motion.div>

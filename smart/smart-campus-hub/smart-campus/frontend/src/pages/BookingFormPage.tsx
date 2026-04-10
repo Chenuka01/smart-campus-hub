@@ -36,7 +36,7 @@ export default function BookingFormPage() {
 
   useEffect(() => {
     facilityApi.getAll().then(res => {
-      setFacilities(res.data.filter((f: Facility) => f.status === 'ACTIVE'));
+      setFacilities(res.data);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -159,7 +159,15 @@ export default function BookingFormPage() {
             <select value={form.facilityId} onChange={e => setForm({ ...form, facilityId: e.target.value })}
               className="glass-select w-full px-4 py-3 rounded-xl text-sm" required>
               <option value="">Select a facility</option>
-              {facilities.map(f => <option key={f.id} value={f.id}>{f.name} ({f.type.replace(/_/g, ' ')}) – {f.location}</option>)}
+              {facilities.map(f => {
+                const isUnavailable = f.status !== 'ACTIVE';
+                const statusLabel = f.status === 'UNDER_MAINTENANCE' ? ' (🔧 Under Maintenance)' : f.status === 'OUT_OF_SERVICE' ? ' (❌ Out of Service)' : '';
+                return (
+                  <option key={f.id} value={f.id} disabled={isUnavailable}>
+                    {f.name} ({f.type.replace(/_/g, ' ')}) – {f.location}{statusLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -171,7 +179,14 @@ export default function BookingFormPage() {
                 <div className="flex items-center gap-3">
                   <Building2 className="w-4 h-4 text-violet-400 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-bold text-white">{selectedFacility.name}</p>
+                    <p className="text-sm font-bold text-white">
+                      {selectedFacility.name}
+                      {selectedFacility.status !== 'ACTIVE' && (
+                        <span className="ml-2 text-xs font-medium text-red-400">
+                          {selectedFacility.status === 'UNDER_MAINTENANCE' ? '🔧 Under Maintenance' : '❌ Out of Service'}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-3">
                       <span>{selectedFacility.location}</span>
                       {selectedFacility.capacity > 0 && <span className="flex items-center gap-1"><Users className="w-3 h-3" />Capacity: {selectedFacility.capacity}</span>}
