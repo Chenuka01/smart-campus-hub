@@ -76,9 +76,9 @@ public class BookingController {
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Booking> cancelBooking(
             @PathVariable String id,
-            @RequestBody(required = false) Map<String, String> request,
+            @RequestBody Map<String, String> request,
             @AuthenticationPrincipal User user) {
-        String reason = request != null ? request.get("reason") : null;
-        return ResponseEntity.ok(bookingService.cancelBooking(id, user.getId(), reason));
+        String reason = request.get("reason");
+        return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
     }
 }

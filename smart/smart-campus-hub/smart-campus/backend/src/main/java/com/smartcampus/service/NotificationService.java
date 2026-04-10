@@ -96,7 +96,7 @@ public class NotificationService {
                     } catch (Exception e) {
                         System.err.println("[ERROR] Failed to send email: " + e.getMessage());
                         e.printStackTrace();
-                        throw new RuntimeException("Email failed: " + e.getMessage());
+                        // Do not throw an exception here so that the main transaction (booking/ticket update) doesn't roll back
                     }
                 }
             } else {

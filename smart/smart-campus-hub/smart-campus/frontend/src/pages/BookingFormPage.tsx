@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { facilityApi, bookingApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
-import { ArrowLeft, CalendarDays, Building2, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Building2, Users, Search } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
+import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import { itemVariants, errorShakeVariants } from '@/lib/animations';
 
 export default function BookingFormPage() {
@@ -20,6 +21,7 @@ export default function BookingFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showCalendar, setShowCalendar] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ attendees?: string; time?: string }>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [form, setForm] = useState({
@@ -180,6 +182,25 @@ export default function BookingFormPage() {
             )}
           </AnimatePresence>
 
+          {/* Date & Time Section Header */}
+          <div className="pt-2 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-violet-400" />
+              Schedule
+            </h3>
+            {selectedFacility && (
+              <NeuButton 
+                type="button" 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => setShowCalendar(true)}
+                icon={<Search className="w-4 h-4 text-violet-500" />}
+              >
+                Check Availability
+              </NeuButton>
+            )}
+          </div>
+
           {/* Date */}
           <div>
             <label className="block text-sm font-semibold text-slate-300 mb-2">Date *</label>
@@ -234,6 +255,20 @@ export default function BookingFormPage() {
           </div>
         </form>
       </LiquidGlassCard>
+
+      {/* Availability Calendar Modal */}
+      <AnimatePresence>
+        {showCalendar && selectedFacility && (
+          <AvailabilityCalendar
+            facility={selectedFacility}
+            initialDate={form.date || new Date().toISOString().split('T')[0]}
+            onSelectSlot={(date, startTime, endTime) => {
+              setForm(f => ({ ...f, date, startTime, endTime }));
+            }}
+            onClose={() => setShowCalendar(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

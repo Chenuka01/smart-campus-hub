@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/context/SocketContext';
 import { bookingApi } from '@/lib/api';
 import type { Booking } from '@/lib/types';
-import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, MessageSquare, X } from 'lucide-react';
+import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, X, AlertTriangle } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
@@ -18,6 +19,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function BookingsPage() {
   const { isAdmin, user } = useAuth();
+  const { unreadCount } = useSocket();
   const isManager = user?.roles?.includes('MANAGER') || false;
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -34,7 +36,7 @@ export default function BookingsPage() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchBookings(); }, [isAdmin, isManager]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchBookings(); }, [isAdmin, isManager, unreadCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRebook = (booking: Booking) => {
     navigate(`/bookings/new`, {
@@ -58,8 +60,8 @@ export default function BookingsPage() {
     if (!actionModal) return;
 
     if ((actionModal.action === 'reject' || actionModal.action === 'cancel') && !reason.trim()) {
-      alert('Please provide a reason.');
-      return;
+      // The user wants a specific empty reason validation behavior shown on UI
+      return; // Handled below in UI
     }
 
     setActionLoading(true);
@@ -86,9 +88,10 @@ export default function BookingsPage() {
   }
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <>
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
+        {/* Header */}
+        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">
             <span className="text-gradient">Bookings</span>
@@ -97,11 +100,13 @@ export default function BookingsPage() {
             {isAdmin ? 'Manage all facility bookings' : 'View and manage your bookings'}
           </p>
         </div>
-        <Link to="/bookings/new">
-          <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
-            New Booking
-          </NeuButton>
-        </Link>
+        {!isAdmin && (
+          <Link to="/bookings/new">
+            <NeuButton variant="primary" size="md" icon={<Plus className="w-4 h-4" />} iconPosition="left">
+              New Booking
+            </NeuButton>
+          </Link>
+        )}
       </motion.div>
 
       {/* Status Filter Tabs */}
@@ -171,10 +176,42 @@ export default function BookingsPage() {
                         )}
                       </div>
                       <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">{booking.purpose}</p>
-                      {booking.rejectionReason && (
-                        <p className="text-xs text-rose-400 mt-1.5 flex items-center gap-1.5 font-medium">
-                          <MessageSquare className="w-3 h-3" /> {booking.rejectionReason}
-                        </p>
+                      
+                      {booking.status === 'REJECTED' && (
+                        <div className="mt-2.5 p-3.5 rounded-xl bg-[#2e1515]/80 border border-rose-800/40 shadow-[0_0_15px_rgba(244,63,94,0.05)]">
+                          <p className="text-xs text-rose-400 flex items-start gap-2 font-medium leading-relaxed">
+                            <XCircle className="w-4 h-4 shrink-0 mt-0.5" /> 
+                            <span className="flex flex-col gap-1.5 flex-1">
+                              <span><strong className="text-rose-300">Rejection Reason:</strong> {booking.rejectionReason || "No rejection reason provided."}</span>
+                              {booking.updatedAt && (
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                  REJECTED ON: {new Date(booking.updatedAt).toLocaleString()}
+                                </span>
+                              )}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                      
+                      {booking.status === 'CANCELLED' && (
+                        <div className="mt-2.5 p-3.5 rounded-xl bg-[#2e1515]/80 border border-rose-800/40">
+                          <p className="text-xs text-rose-400 flex items-start gap-2 font-medium leading-relaxed">
+                            <Ban className="w-4 h-4 shrink-0 mt-0.5" /> 
+                            <span className="flex flex-col gap-1.5 flex-1">
+                              <span><strong className="text-rose-300">Cancellation Reason:</strong> {booking.cancellationReason || "No cancellation reason provided."}</span>
+                              {booking.canceledAt && (
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                  CANCELED AT: {new Date(booking.canceledAt).toLocaleString()}
+                                </span>
+                              )}
+                              {userCanManage && booking.canceledBy && (
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                  CANCELED BY: {booking.canceledBy} ({booking.canceledByRole})
+                                </span>
+                              )}
+                            </span>
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -191,8 +228,8 @@ export default function BookingsPage() {
                         <NeuButton size="sm" variant="danger" onClick={() => setActionModal({ id: booking.id, action: 'reject' })}>Reject</NeuButton>
                       </div>
                     )}
-                    {booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
-                      <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel</NeuButton>
+                    {!isAdmin && !isManager && booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
+                      <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel Booking</NeuButton>
                     )}
                     {!isAdmin && (booking.status === 'APPROVED' || booking.status === 'COMPLETED') && (
                       <NeuButton size="sm" variant="primary" onClick={() => handleRebook(booking)}>Rebook</NeuButton>
@@ -211,6 +248,7 @@ export default function BookingsPage() {
           <p className="text-slate-400 font-semibold">No bookings found</p>
         </div>
       )}
+      </motion.div>
 
       {/* Action Modal */}
       <AnimatePresence>
@@ -246,14 +284,20 @@ export default function BookingsPage() {
               <h3 className="text-xl font-bold text-white mb-5 capitalize">{actionModal.action} Booking</h3>
               {(actionModal.action === 'reject' || actionModal.action === 'cancel') && (
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Reason</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    {actionModal.action === 'cancel' ? 'Reason for Cancellation *' : 'Reason *'}
+                  </label>
                   <textarea
                     value={reason}
                     onChange={e => setReason(e.target.value)}
                     rows={3}
-                    className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
+                    className={`glass-input w-full px-4 py-3 rounded-xl text-sm resize-none ${(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() ? 'border-rose-500/50' : ''}`}
                     placeholder={`Reason for ${actionModal.action}…`}
+                    required
                   />
+                  {(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() && (
+                    <p className="text-xs text-rose-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Please provide a reason for {actionModal.action}.</p>
+                  )}
                 </div>
               )}
               {actionModal.action === 'approve' && (
@@ -262,6 +306,7 @@ export default function BookingsPage() {
               <div className="flex">
                 <NeuButton
                   onClick={handleAction}
+                  disabled={(actionModal.action === 'reject' || actionModal.action === 'cancel') && !reason.trim()}
                   loading={actionLoading}
                   variant={actionModal.action === 'approve' ? 'success' : actionModal.action === 'reject' ? 'danger' : 'danger'}
                   fullWidth
@@ -278,6 +323,6 @@ export default function BookingsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </>
   );
 }

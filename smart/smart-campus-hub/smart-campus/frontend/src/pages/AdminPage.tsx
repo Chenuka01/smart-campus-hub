@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, facilityApi, bookingApi, ticketApi } from '@/lib/api';
 import type { User, Facility, Booking, Ticket } from '@/lib/types';
-import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle, X } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, statCounterVariants, fadeScaleVariants } from '@/lib/animations';
@@ -28,6 +28,10 @@ export default function AdminPage() {
   const [roleModal, setRoleModal] = useState<{ userId: string; currentRoles: string[] } | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
+  const [actionModal, setActionModal] = useState<{ id: string; action: string } | null>(null);
+  const [reason, setReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
   useEffect(() => {
     if (!isAdmin && !isManager) return;
     Promise.all([authApi.getUsers(), facilityApi.getAll(), bookingApi.getAll(), ticketApi.getAll()])
@@ -46,6 +50,24 @@ export default function AdminPage() {
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update roles');
     }
+  };
+
+  const handleBookingAction = async () => {
+    if (!actionModal) return;
+
+    if (actionModal.action === 'reject' && !reason.trim()) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      if (actionModal.action === 'approve') await bookingApi.approve(actionModal.id);
+      else if (actionModal.action === 'reject') await bookingApi.reject(actionModal.id, reason);
+      const res = await bookingApi.getAll();
+      setBookings(res.data);
+      setActionModal(null);
+      setReason('');
+    } catch { alert('Action failed'); } finally { setActionLoading(false); }
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -113,8 +135,9 @@ export default function AdminPage() {
   ];
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
-      {/* Header */}
+    <>
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8">
+        {/* Header */}
       <motion.div variants={itemVariants} className="flex items-end gap-4">
         <div
           className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center flex-shrink-0"
@@ -462,26 +485,22 @@ export default function AdminPage() {
                           }`}>
                             {b.status}
                           </span>
+                          {b.status === 'REJECTED' && b.rejectionReason && (
+                            <p className="mt-2 text-[10px] text-rose-400 font-medium bg-rose-500/10 px-2 py-1 rounded">
+                              Reason: {b.rejectionReason}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                              {b.status === 'PENDING' && (
                                <>
-                                 <button onClick={async () => {
-                                   await bookingApi.approve(b.id);
-                                   const res = await bookingApi.getAll(); setBookings(res.data);
-                                 }} className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-400/10 transition-colors">
-                                   <CheckCircle className="w-4 h-4" />
-                                 </button>
-                                 <button onClick={async () => {
-                                   const reason = prompt('Rejection reason:');
-                                   if(reason) {
-                                     await bookingApi.reject(b.id, reason);
-                                     const res = await bookingApi.getAll(); setBookings(res.data);
-                                   }
-                                 }} className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors">
-                                   <AlertTriangle className="w-4 h-4" />
-                                 </button>
+                                 <NeuButton size="sm" variant="success" onClick={() => setActionModal({ id: b.id, action: 'approve' })}>
+                                   Approve
+                                 </NeuButton>
+                                 <NeuButton size="sm" variant="danger" onClick={() => setActionModal({ id: b.id, action: 'reject' })}>
+                                   Reject
+                                 </NeuButton>
                                </>
                              )}
                           </div>
@@ -543,6 +562,81 @@ export default function AdminPage() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+
+      {/* Action Modal */}
+      <AnimatePresence>
+        {actionModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setActionModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl p-6 relative"
+              style={{
+                background: 'rgba(20, 10, 50, 0.95)',
+                backdropFilter: 'blur(24px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+              }}
+            >
+              <button 
+                onClick={() => setActionModal(null)}
+                className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <h3 className="text-xl font-bold text-white mb-5 capitalize">{actionModal.action} Booking</h3>
+              {(actionModal.action === 'reject' || actionModal.action === 'cancel') && (
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    {actionModal.action === 'cancel' ? 'Reason for Cancellation *' : 'Reason *'}
+                  </label>
+                  <textarea
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    rows={3}
+                    className={`glass-input w-full px-4 py-3 rounded-xl text-sm resize-none ${(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() ? 'border-rose-500/50' : ''}`}
+                    placeholder={`Reason for ${actionModal.action}…`}
+                    required
+                  />
+                  {(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() && (
+                    <p className="text-xs text-rose-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Please provide a reason for {actionModal.action}.</p>
+                  )}
+                </div>
+              )}
+              {actionModal.action === 'approve' && (
+                <p className="text-slate-400 text-sm mb-5">Are you sure you want to approve this booking?</p>
+              )}
+              <div className="flex">
+                <NeuButton
+                  onClick={handleBookingAction}
+                  disabled={(actionModal.action === 'reject' || actionModal.action === 'cancel') && !reason.trim()}
+                  loading={actionLoading}
+                  variant={actionModal.action === 'approve' ? 'success' : actionModal.action === 'reject' ? 'danger' : 'danger'}
+                  fullWidth
+                >
+                  {actionModal.action === 'cancel' 
+                    ? 'Confirm Cancellation' 
+                    : actionModal.action === 'reject' 
+                      ? 'Submit Rejection'
+                      : 'Approve'
+                  }
+                </NeuButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
