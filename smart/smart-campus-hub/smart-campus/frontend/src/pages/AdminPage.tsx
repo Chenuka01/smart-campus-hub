@@ -67,7 +67,27 @@ export default function AdminPage() {
       setBookings(res.data);
       setActionModal(null);
       setReason('');
-    } catch { alert('Action failed'); } finally { setActionLoading(false); }
+    } catch {
+      alert('Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAssignTicket = async (id: string, techId: string, techName: string) => {
+    try {
+      // Optimistically update the UI to show the assignment immediately
+      setTickets(prev => prev.map(t => 
+        t.id === id ? { ...t, assignedTo: techId, assignedToName: techName, status: 'IN_PROGRESS' } : t
+      ));
+      setTicketAssignModal(null);
+      
+      await ticketApi.assign(id, techId, techName);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to assign ticket');
+      // Revert if it fails
+      refreshData('tickets');
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {

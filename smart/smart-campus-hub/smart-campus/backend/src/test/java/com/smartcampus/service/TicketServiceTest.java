@@ -94,10 +94,41 @@ class TicketServiceTest {
 
         Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
 
-        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.IN_PROGRESS);
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
         assertThat(result.getAssignedTo()).isEqualTo("tech-1");
         assertThat(result.getAssignedToName()).isEqualTo("John Technician");
         verify(notificationService, times(2)).createNotification(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("createTicket: AUTO category and priority are classified without enum errors")
+    void createTicket_autoDetectValues_classifiesSafely() {
+        testRequest.setCategory("AUTO");
+        testRequest.setPriority("AUTO");
+
+        when(ticketClassificationService.classify(any(), any(), any(), any(), any()))
+                .thenReturn(new TicketClassificationService.TicketClassification("IT Equipment", Ticket.Priority.HIGH));
+        when(technicianAutoAssignmentService.findBestTechnicianForCategory("IT Equipment"))
+                .thenReturn(Optional.empty());
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> {
+            Ticket ticket = invocation.getArgument(0);
+            ticket.setId("ticket-2");
+            return ticket;
+        });
+
+        Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
+
+        assertThat(result.getId()).isEqualTo("ticket-2");
+        assertThat(result.getCategory()).isEqualTo("IT Equipment");
+        assertThat(result.getPriority()).isEqualTo(Ticket.Priority.HIGH);
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
+        verify(ticketClassificationService).classify(
+                testRequest.getTitle(),
+                testRequest.getDescription(),
+                testRequest.getLocation(),
+                "AUTO",
+                "AUTO"
+        );
     }
 
     // ─── assignTicket ─────────────────────────────────────────────────────────

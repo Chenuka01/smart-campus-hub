@@ -7,6 +7,7 @@ import com.smartcampus.repository.FacilityRepository;
 import com.smartcampus.repository.TicketRepository;
 import com.smartcampus.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -21,17 +22,22 @@ public class DataInitializer implements CommandLineRunner {
     private final FacilityRepository facilityRepository;
     private final TicketRepository ticketRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
 
     public DataInitializer(UserRepository userRepository, FacilityRepository facilityRepository,
-                           TicketRepository ticketRepository, PasswordEncoder passwordEncoder) {
+                           TicketRepository ticketRepository, PasswordEncoder passwordEncoder,
+                           JdbcTemplate jdbcTemplate) {
         this.userRepository = userRepository;
         this.facilityRepository = facilityRepository;
         this.ticketRepository = ticketRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     public void run(String... args) {
+        repairCorruptedEnumData();
+
         // Ensure Super Admin exists regardless of count (to fix credential issues)
         if (userRepository.findByEmail("superadmin@smartcampus.com").isEmpty()) {
             User superAdmin = new User();
@@ -199,6 +205,26 @@ public class DataInitializer implements CommandLineRunner {
                 System.out.println("Sample tickets seeded.");
             }
         }
+    }
+
+    private void repairCorruptedEnumData() {
+        jdbcTemplate.update("UPDATE user_roles SET role = 'USER' WHERE role IS NULL OR TRIM(role) = ''");
+        jdbcTemplate.update("""
+                INSERT INTO user_roles (user_id, role)
+                SELECT u.id, 'USER'
+                FROM users u
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    WHERE ur.user_id = u.id
+                    AND ur.role IS NOT NULL
+                    AND TRIM(ur.role) <> ''
+                )
+                """);
+
+        jdbcTemplate.update("UPDATE tickets SET status = 'OPEN' WHERE status IS NULL OR TRIM(status) = ''");
+        jdbcTemplate.update("UPDATE tickets SET priority = 'LOW' WHERE priority IS NULL OR TRIM(priority) = ''");
+        jdbcTemplate.update("UPDATE notifications SET type = 'SYSTEM' WHERE type IS NULL OR TRIM(type) = ''");
     }
 
     private Facility createFacility(String name, Facility.FacilityType type, int capacity,
