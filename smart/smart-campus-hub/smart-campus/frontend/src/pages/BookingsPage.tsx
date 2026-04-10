@@ -8,6 +8,7 @@ import type { Booking } from '@/lib/types';
 import { CalendarDays, Plus, CheckCircle2, XCircle, Clock, Ban, X, AlertTriangle } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
+import BookingTimer from '@/components/BookingTimer';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock; glassColor: string; glow: string }> = {
@@ -75,14 +76,24 @@ export default function BookingsPage() {
     } catch { alert('Action failed'); } finally { setActionLoading(false); }
   };
 
-  const filtered = bookings.filter(b => !filter || b.status === filter);
+  const filtered = bookings.filter(b => !filter || b.status === filter).sort((a, b) => {
+    const dateTimeA = new Date(`${a.date}T${a.startTime}`).getTime();
+    const dateTimeB = new Date(`${b.date}T${b.startTime}`).getTime();
+    
+    // Handle invalid dates by putting them at the end
+    if (isNaN(dateTimeA)) return 1;
+    if (isNaN(dateTimeB)) return -1;
+    
+    return dateTimeA - dateTimeB; // Ascending (oldest -> newest)
+  });
+  
   const filterTabs = ['', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
-        <p className="text-sm text-slate-500 animate-pulse">Loading bookings...</p>
+        <p className="text-sm text-slate-500 animate-pulse">Loading bookings…</p>
       </div>
     );
   }
@@ -133,7 +144,7 @@ export default function BookingsPage() {
               }}
             >
               {cfg && <cfg.icon className={`inline w-3.5 h-3.5 mr-1.5 ${cfg.color}`} />}
-              {cfg?.label || 'All'} <span className="opacity-60 ml-1">({count})</span>   
+              {s || 'All'} <span className="opacity-60 ml-1">({count})</span>
             </motion.button>
           );
         })}
@@ -177,6 +188,15 @@ export default function BookingsPage() {
                       </div>
                       <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">{booking.purpose}</p>
                       
+                      {booking.status === 'APPROVED' && (
+                        <BookingTimer
+                          date={booking.date}
+                          startTime={booking.startTime}
+                          endTime={booking.endTime}
+                          status={booking.status}
+                        />
+                      )}
+
                       {booking.status === 'REJECTED' && (
                         <div className="mt-2.5 p-3.5 rounded-xl bg-[#2e1515]/80 border border-rose-800/40 shadow-[0_0_15px_rgba(244,63,94,0.05)]">
                           <p className="text-xs text-rose-400 flex items-start gap-2 font-medium leading-relaxed">
@@ -224,8 +244,8 @@ export default function BookingsPage() {
                     </span>
                     {userCanManage && booking.status === 'PENDING' && (
                       <div className="flex gap-2">
-                        <NeuButton size="sm" variant="success" onClick={() => setActionModal({ id: booking.id, action: 'approve' })}>Approve</NeuButton>
-                        <NeuButton size="sm" variant="danger" onClick={() => setActionModal({ id: booking.id, action: 'reject' })}>Reject</NeuButton>
+                        <NeuButton size="sm" variant="success" onClick={(e) => { e.stopPropagation(); setActionModal({ id: booking.id, action: 'approve' }); }}>Approve</NeuButton>
+                        <NeuButton size="sm" variant="danger" onClick={(e) => { e.stopPropagation(); setActionModal({ id: booking.id, action: 'reject' }); }}>Reject</NeuButton>
                       </div>
                     )}
                     {!isAdmin && !isManager && booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
@@ -291,8 +311,9 @@ export default function BookingsPage() {
                     value={reason}
                     onChange={e => setReason(e.target.value)}
                     rows={3}
-                    className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
-                    placeholder={`Reason for ${actionModal.action}...`}
+                    className={`glass-input w-full px-4 py-3 rounded-xl text-sm resize-none ${(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() ? 'border-rose-500/50' : ''}`}
+                    placeholder={`Reason for ${actionModal.action}…`}
+                    required
                   />
                   {(actionModal.action === 'cancel' || actionModal.action === 'reject') && !reason.trim() && (
                     <p className="text-xs text-rose-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Please provide a reason for {actionModal.action}.</p>

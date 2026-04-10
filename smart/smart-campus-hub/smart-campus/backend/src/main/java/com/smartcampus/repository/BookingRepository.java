@@ -9,6 +9,8 @@ import java.time.LocalTime;
 import java.util.List;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
+    List<Booking> findAllByOrderByDateAscStartTimeAsc();
+    List<Booking> findByUserIdOrderByDateAscStartTimeAsc(String userId);
     List<Booking> findByUserId(String userId);
     List<Booking> findByFacilityId(String facilityId);
     List<Booking> findByStatus(Booking.BookingStatus status);

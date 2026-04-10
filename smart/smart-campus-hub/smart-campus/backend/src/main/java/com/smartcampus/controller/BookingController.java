@@ -47,10 +47,8 @@ public class BookingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Booking> getBookingById(
-            @PathVariable String id,
-            @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(bookingService.getBookingById(id, user));
+    public ResponseEntity<Booking> getBookingById(@PathVariable String id) {
+        return ResponseEntity.ok(bookingService.getBookingById(id));
     }
 
     @GetMapping("/facility/{facilityId}")
@@ -78,9 +76,9 @@ public class BookingController {
     @PutMapping("/{id}/cancel")
     public ResponseEntity<Booking> cancelBooking(
             @PathVariable String id,
-            @RequestBody Map<String, String> request,
+            @RequestBody(required = false) Map<String, String> request,
             @AuthenticationPrincipal User user) {
-        String reason = request.get("reason");
-        return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
+        String reason = request != null ? request.get("reason") : null;
+        return ResponseEntity.ok(bookingService.cancelBooking(id, user.getId(), reason));
     }
 }
