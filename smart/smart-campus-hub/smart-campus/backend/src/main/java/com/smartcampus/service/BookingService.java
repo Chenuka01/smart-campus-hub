@@ -133,7 +133,22 @@ public class BookingService {
         return bookingRepository.save(booking);
     }
 
-    public Booking getBookingById(String id) {
+    public Booking getBookingById(String id, User user) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
+
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> List.of("ADMIN", "SUPER_ADMIN", "MANAGER").contains(r.name()));
+        boolean isOwner = booking.getUserId().equals(user.getId());
+
+        if (!isStaff && !isOwner) {
+            throw new RuntimeException("Not authorized to view this booking");
+        }
+
+        return booking;
+    }
+
+    private Booking getBookingById(String id) {
         return bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found with id: " + id));
     }

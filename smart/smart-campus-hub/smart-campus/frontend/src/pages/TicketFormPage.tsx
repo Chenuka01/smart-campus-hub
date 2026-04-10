@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { facilityApi, ticketApi } from '@/lib/api';
-import type { Facility } from '@/lib/types';
-import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload } from 'lucide-react';
+import { facilityApi, ticketApi, authApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import type { Facility, User } from '@/lib/types';
+import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload, User as UserIcon } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { itemVariants, errorShakeVariants } from '@/lib/animations';
@@ -31,16 +32,55 @@ export default function TicketFormPage() {
   const [form, setForm] = useState({
     title: '', facilityId: '', location: '', category: 'AUTO',
     description: '', priority: 'AUTO', contactEmail: '', contactPhone: '',
+    assignedTo: '', assignedToName: ''
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { isAdmin, isSuperAdmin, isManager } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
     facilityApi.getAll().then(res => setFacilities(res.data)).finally(() => setLoading(false));
-  }, []);
+    if (isAdmin || isSuperAdmin || isManager) {
+      authApi.getUsers().then(res => setUsers(res.data)).catch(() => {});
+    }
+  }, [isAdmin, isSuperAdmin, isManager]);
+
+  const handleTechChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const userId = e.target.value;
+    const user = users.find(u => u.id === userId);
+    setForm(prev => ({
+      ...prev,
+      assignedTo: userId,
+      assignedToName: user ? user.name : ''
+    }));
+  };
 
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => previews.forEach(url => URL.revokeObjectURL(url));
   }, [previews]);
+
+  const validate = () => {
+    const errors: Record<string, string> = {};
+    if (!form.title.trim()) errors.title = 'Title is required';
+    else if (form.title.length < 5) errors.title = 'Title must be at least 5 characters';
+    
+    if (!form.location.trim()) errors.location = 'Location is required';
+    
+    if (!form.description.trim()) errors.description = 'Description is required';
+    else if (form.description.length < 20) errors.description = 'Please provide more detail (min 20 chars)';
+
+    if (form.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail)) {
+      errors.contactEmail = 'Invalid email format';
+    }
+
+    if (form.contactPhone && !/^\+?[0-9\s-]{10,}$/.test(form.contactPhone)) {
+      errors.contactPhone = 'Invalid phone number';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -61,6 +101,14 @@ export default function TicketFormPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+
+    if (!validate()) {
+      setError('Please fix the errors below');
+      setShakeKey(k => k + 1);
+      return;
+    }
+
     setSaving(true);
     try {
       if (attachments.length > 0) {
@@ -120,9 +168,14 @@ export default function TicketFormPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-sm font-semibold text-slate-300 mb-2">Title *</label>
-            <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-              className="glass-input w-full px-4 py-3 rounded-xl text-sm"
-              placeholder="Brief description of the issue" required />
+            <input type="text" value={form.title} 
+              onChange={e => {
+                setForm({ ...form, title: e.target.value });
+                if (fieldErrors.title) setFieldErrors({ ...fieldErrors, title: '' });
+              }}
+              className={`glass-input w-full px-4 py-3 rounded-xl text-sm ${fieldErrors.title ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
+              placeholder="Brief description of the issue" />
+            {fieldErrors.title && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.title}</p>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -136,9 +189,14 @@ export default function TicketFormPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Location *</label>
-              <input type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                className="glass-input w-full px-4 py-3 rounded-xl text-sm"
-                placeholder="e.g. Block A, Room 101" required />
+              <input type="text" value={form.location} 
+                onChange={e => {
+                  setForm({ ...form, location: e.target.value });
+                  if (fieldErrors.location) setFieldErrors({ ...fieldErrors, location: '' });
+                }}
+                className={`glass-input w-full px-4 py-3 rounded-xl text-sm ${fieldErrors.location ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
+                placeholder="e.g. Block A, Room 101" />
+              {fieldErrors.location && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.location}</p>}
             </div>
           </div>
 
@@ -164,6 +222,28 @@ export default function TicketFormPage() {
             </div>
           </div>
 
+          {(isAdmin || isSuperAdmin || isManager) && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-violet-500/5 border border-violet-500/20">
+              <label className="flex items-center gap-2 text-sm font-semibold text-violet-300 mb-3">
+                <UserIcon className="w-4 h-4" /> Administrative Assignment
+              </label>
+              <select 
+                value={form.assignedTo} 
+                onChange={handleTechChange}
+                className="glass-select w-full px-4 py-3 rounded-xl text-sm"
+              >
+                <option value="">Auto-assign (Default)</option>
+                {users.filter(u => u.roles?.some(r => ['TECHNICIAN', 'ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(r))).map(u => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.roles?.[0]})</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-2 ml-1">
+                Admins can manually route this ticket to a specific staff member during creation.
+              </p>
+            </motion.div>
+          )}
+
           {/* Priority indicator */}
           <motion.div layout
             className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold"
@@ -182,9 +262,14 @@ export default function TicketFormPage() {
 
           <div>
             <label className="block text-sm font-semibold text-slate-300 mb-2">Description *</label>
-            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-              rows={4} className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
-              placeholder="Describe the issue in detail…" required />
+            <textarea value={form.description} 
+              onChange={e => {
+                setForm({ ...form, description: e.target.value });
+                if (fieldErrors.description) setFieldErrors({ ...fieldErrors, description: '' });
+              }}
+              rows={4} className={`glass-input w-full px-4 py-3 rounded-xl text-sm resize-none ${fieldErrors.description ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
+              placeholder="Describe the issue in detail…" />
+            {fieldErrors.description && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.description}</p>}
           </div>
 
           {/* ─── Image Attachments (up to 3) ─── */}
@@ -286,15 +371,25 @@ export default function TicketFormPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Contact Email</label>
-              <input type="email" value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })}
-                className="glass-input w-full px-4 py-3 rounded-xl text-sm"
+              <input type="email" value={form.contactEmail} 
+                onChange={e => {
+                  setForm({ ...form, contactEmail: e.target.value });
+                  if (fieldErrors.contactEmail) setFieldErrors({ ...fieldErrors, contactEmail: '' });
+                }}
+                className={`glass-input w-full px-4 py-3 rounded-xl text-sm ${fieldErrors.contactEmail ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
                 placeholder="your@email.com" />
+              {fieldErrors.contactEmail && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.contactEmail}</p>}
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Contact Phone</label>
-              <input type="tel" value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })}
-                className="glass-input w-full px-4 py-3 rounded-xl text-sm"
+              <input type="tel" value={form.contactPhone} 
+                onChange={e => {
+                  setForm({ ...form, contactPhone: e.target.value });
+                  if (fieldErrors.contactPhone) setFieldErrors({ ...fieldErrors, contactPhone: '' });
+                }}
+                className={`glass-input w-full px-4 py-3 rounded-xl text-sm ${fieldErrors.contactPhone ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
                 placeholder="+94 77 123 4567" />
+              {fieldErrors.contactPhone && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.contactPhone}</p>}
             </div>
           </div>
 

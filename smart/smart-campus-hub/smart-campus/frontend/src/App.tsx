@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { SocketProvider } from '@/context/SocketContext';
 import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import FacilitiesPage from '@/pages/FacilitiesPage';
 import FacilityFormPage from '@/pages/FacilityFormPage';
@@ -16,6 +17,8 @@ import AdminPage from '@/pages/AdminPage';
 import ProfilePage from '@/pages/ProfilePage';
 import TechnicianPage from '@/pages/TechnicianPage';
 import AnalyticsDashboardPage from '@/pages/AnalyticsDashboardPage';
+import FacilityTypeDetailsPage from '@/pages/FacilityTypeDetailsPage';
+import FavoritesPage from '@/pages/FavoritesPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -49,10 +52,13 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
         
         <Route path="/dashboard" element={<ProtectedRoute>{isTechnician ? <Navigate to="/technician" replace /> : <DashboardPage />}</ProtectedRoute>} />
         
         <Route path="/facilities" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
+        <Route path="/facilities/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+        <Route path="/facilities/type/:type" element={<ProtectedRoute><FacilityTypeDetailsPage /></ProtectedRoute>} />
         <Route path="/facilities/new" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/edit/:id" element={<ProtectedRoute><FacilityFormPage /></ProtectedRoute>} />
         <Route path="/facilities/analytics" element={<ProtectedRoute><AnalyticsDashboardPage /></ProtectedRoute>} />

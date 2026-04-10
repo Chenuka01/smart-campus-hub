@@ -8,6 +8,7 @@ import com.smartcampus.exception.BadRequestException;
 import com.smartcampus.model.User;
 import com.smartcampus.service.AuthService;
 import com.smartcampus.service.GoogleTokenVerifier;
+import com.smartcampus.service.PasswordResetService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,10 +27,12 @@ public class AuthController {
 
     private final AuthService authService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthService authService, GoogleTokenVerifier googleTokenVerifier) {
+    public AuthController(AuthService authService, GoogleTokenVerifier googleTokenVerifier, PasswordResetService passwordResetService) {
         this.authService = authService;
         this.googleTokenVerifier = googleTokenVerifier;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/register")
@@ -94,7 +97,7 @@ public class AuthController {
     }
 
     @GetMapping("/users")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());
     }
@@ -116,5 +119,38 @@ public class AuthController {
     public ResponseEntity<ApiResponse> deleteUser(@PathVariable String userId) {
         authService.deleteUser(userId);
         return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<ApiResponse> requestPasswordReset(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("Email is required");
+        }
+        passwordResetService.requestPasswordReset(email);
+        return ResponseEntity.ok(ApiResponse.success("OTP sent to your email", null));
+    }
+
+    @PostMapping("/password-reset/verify-otp")
+    public ResponseEntity<ApiResponse> verifyOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String otp = request.get("otp");
+        if (email == null || email.isBlank() || otp == null || otp.isBlank()) {
+            throw new BadRequestException("Email and OTP are required");
+        }
+        passwordResetService.verifyOtp(email, otp);
+        return ResponseEntity.ok(ApiResponse.success("OTP verified successfully", null));
+    }
+
+    @PostMapping("/password-reset/reset")
+    public ResponseEntity<ApiResponse> resetPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String otp = request.get("otp");
+        String newPassword = request.get("newPassword");
+        if (email == null || email.isBlank() || otp == null || otp.isBlank() || newPassword == null || newPassword.isBlank()) {
+            throw new BadRequestException("Email, OTP, and new password are required");
+        }
+        passwordResetService.resetPassword(email, otp, newPassword);
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully", null));
     }
 }

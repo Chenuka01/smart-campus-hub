@@ -27,7 +27,7 @@ public class CommentService {
     }
 
     public Comment addComment(String ticketId, String content, User user) {
-        Ticket ticket = ticketService.getTicketById(ticketId);
+        Ticket ticket = ticketService.getTicketById(ticketId, user);
 
         Comment comment = new Comment();
         comment.setTicketId(ticketId);
@@ -83,16 +83,19 @@ public class CommentService {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
 
-        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r == User.Role.ADMIN);
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> List.of("ADMIN", "SUPER_ADMIN", "MANAGER").contains(r.name()));
 
-        if (!comment.getAuthorId().equals(user.getId()) && !isAdmin) {
+        if (!comment.getAuthorId().equals(user.getId()) && !isStaff) {
             throw new BadRequestException("You can only delete your own comments");
         }
 
         commentRepository.deleteById(commentId);
     }
 
-    public List<Comment> getTicketComments(String ticketId) {
+    public List<Comment> getTicketComments(String ticketId, User user) {
+        // Ensure user can view the ticket before seeing comments
+        ticketService.getTicketById(ticketId, user);
         return commentRepository.findByTicketIdOrderByCreatedAtDesc(ticketId);
     }
 }

@@ -260,7 +260,7 @@ class BookingServiceTest {
     void getBookingById_unknownId_throwsResourceNotFoundException() {
         when(bookingRepository.findById("unknown")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> bookingService.getBookingById("unknown"))
+        assertThatThrownBy(() -> bookingService.getBookingById("unknown", testUser))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Booking not found");
     }

@@ -2,6 +2,7 @@ package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
 import com.smartcampus.dto.TicketRequest;
+import com.smartcampus.exception.BadRequestException;
 import com.smartcampus.model.Ticket;
 import com.smartcampus.model.User;
 import com.smartcampus.service.FileStorageService;
@@ -39,8 +40,11 @@ public class TicketController {
 
         List<String> attachmentUrls = new ArrayList<>();
         if (files != null) {
-            int maxFiles = Math.min(files.size(), 3);
-            for (int i = 0; i < maxFiles; i++) {
+            // Strictly follow requirement: up to 3 image attachments
+            if (files.size() > 3) {
+                throw new BadRequestException("You can upload up to 3 image attachments per ticket");
+            }
+            for (int i = 0; i < files.size(); i++) {
                 attachmentUrls.add(fileStorageService.storeFile(files.get(i)));
             }
         }
@@ -78,8 +82,10 @@ public class TicketController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Ticket> getTicketById(@PathVariable String id) {
-        return ResponseEntity.ok(ticketService.getTicketById(id));
+    public ResponseEntity<Ticket> getTicketById(
+            @PathVariable String id,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ticketService.getTicketById(id, user));
     }
 
     @PutMapping("/{id}")
@@ -91,7 +97,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -103,11 +109,13 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> updateTicketStatus(
             @PathVariable String id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ticketService.updateTicketStatus(
                 id, request.get("status"),
                 request.get("resolutionNotes"),
-                request.get("rejectionReason")));
+                request.get("rejectionReason"),
+                user));
     }
 
     @DeleteMapping("/{id}")
@@ -116,5 +124,20 @@ public class TicketController {
             @AuthenticationPrincipal User user) {
         ticketService.deleteTicketByUser(id, user);
         return ResponseEntity.ok(ApiResponse.success("Ticket deleted successfully"));
+    }
+
+    @DeleteMapping("/bulk-delete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> bulkDeleteTickets(
+            @RequestBody List<String> ids) {
+        ticketService.bulkDeleteTickets(ids);
+        return ResponseEntity.ok(ApiResponse.success("Tickets deleted successfully"));
+    }
+
+    @DeleteMapping("/clear-history")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse> clearTicketHistory() {
+        ticketService.clearAllClosedResolvedTickets();
+        return ResponseEntity.ok(ApiResponse.success("Ticket history cleared successfully"));
     }
 }
