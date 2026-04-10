@@ -63,12 +63,13 @@ public class Facility {
     }
 
     @Data
-    @NoArgsConstructor
     @Embeddable
     public static class AvailabilityWindow {
         private String dayOfWeek;
         private String startTime;
         private String endTime;
+
+        public AvailabilityWindow() {}
 
         public AvailabilityWindow(String dayOfWeek, String startTime, String endTime) {
             this.dayOfWeek = dayOfWeek;

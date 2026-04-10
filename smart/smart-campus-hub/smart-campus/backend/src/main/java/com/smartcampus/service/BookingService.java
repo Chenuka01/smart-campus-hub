@@ -106,16 +106,29 @@ public class BookingService {
         return saved;
     }
 
-    public Booking cancelBooking(String bookingId, String userId, String reason) {
+    public Booking cancelBooking(String bookingId, User user, String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new BadRequestException("Please provide a reason for cancellation.");
+        }
+        
         Booking booking = getBookingById(bookingId);
+        
+        if (!booking.getUserId().equals(user.getId())) {
+            throw new BadRequestException("You can only cancel your own bookings");
+        }
+        
         if (booking.getStatus() == Booking.BookingStatus.CANCELLED) {
             throw new BadRequestException("Booking is already cancelled");
         }
         if (booking.getStatus() == Booking.BookingStatus.REJECTED) {
             throw new BadRequestException("Cannot cancel a rejected booking");
         }
+        
         booking.setStatus(Booking.BookingStatus.CANCELLED);
         booking.setCancellationReason(reason);
+        booking.setCanceledAt(LocalDateTime.now());
+        booking.setCanceledBy(user.getName());
+        booking.setCanceledByRole("User");
         booking.setUpdatedAt(LocalDateTime.now());
         return bookingRepository.save(booking);
     }

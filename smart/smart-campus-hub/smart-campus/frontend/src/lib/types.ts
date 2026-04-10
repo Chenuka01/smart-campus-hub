@@ -55,6 +55,9 @@ export interface Booking {
   reviewedBy?: string;
   rejectionReason?: string;
   cancellationReason?: string;
+  canceledAt?: string;
+  canceledBy?: string;
+  canceledByRole?: string;
   createdAt: string;
   updatedAt: string;
 }

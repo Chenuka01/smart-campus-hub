@@ -202,12 +202,16 @@ class BookingServiceTest {
     void cancelBooking_approvedBooking_setsStatusCancelled() {
         Booking approved = new Booking();
         approved.setId("booking-1");
+        approved.setUserId("user-1");
         approved.setStatus(Booking.BookingStatus.APPROVED);
 
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(approved));
         when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Booking result = bookingService.cancelBooking("booking-1", "user-1", "Change of plans");
+        User user = new User();
+        user.setId("user-1");
+        user.setName("Test User");
+        Booking result = bookingService.cancelBooking("booking-1", user, "Change of plans");
 
         assertThat(result.getStatus()).isEqualTo(Booking.BookingStatus.CANCELLED);
         assertThat(result.getCancellationReason()).isEqualTo("Change of plans");
@@ -218,11 +222,15 @@ class BookingServiceTest {
     void cancelBooking_alreadyCancelled_throwsBadRequestException() {
         Booking cancelled = new Booking();
         cancelled.setId("booking-1");
+        cancelled.setUserId("user-1");
         cancelled.setStatus(Booking.BookingStatus.CANCELLED);
 
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(cancelled));
 
-        assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", "user-1", null))
+        User user = new User();
+        user.setId("user-1");
+        user.setName("Test User");
+        assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", user, "Change of plans"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("already cancelled");
     }
@@ -232,11 +240,15 @@ class BookingServiceTest {
     void cancelBooking_rejectedBooking_throwsBadRequestException() {
         Booking rejected = new Booking();
         rejected.setId("booking-1");
+        rejected.setUserId("user-1");
         rejected.setStatus(Booking.BookingStatus.REJECTED);
 
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(rejected));
 
-        assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", "user-1", null))
+        User user = new User();
+        user.setId("user-1");
+        user.setName("Test User");
+        assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", user, "Change of plans"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("rejected");
     }
