@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { facilityApi, ticketApi, authApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Facility, User } from '@/lib/types';
-import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Ticket, AlertTriangle, Image, X, Upload, User as UserIcon, Eye, Pencil, RotateCcw, Save } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { itemVariants, errorShakeVariants } from '@/lib/animations';
@@ -22,6 +22,8 @@ const priorityColors: Record<string, { bg: string; border: string; text: string 
 export default function TicketFormPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const annotationCanvasRef = useRef<HTMLCanvasElement>(null);
+  const modalImageRef = useRef<HTMLImageElement>(null);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,11 @@ export default function TicketFormPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { isAdmin, isSuperAdmin, isManager } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [previewModal, setPreviewModal] = useState<{ index: number; mode: 'preview' | 'annotate' } | null>(null);
+  const [brushColor, setBrushColor] = useState('#ef4444');
+  const [brushSize, setBrushSize] = useState(4);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [annotationPreview, setAnnotationPreview] = useState('');
 
   useEffect(() => {
     facilityApi.getAll().then(res => setFacilities(res.data)).finally(() => setLoading(false));
@@ -59,6 +66,46 @@ export default function TicketFormPage() {
   useEffect(() => {
     return () => previews.forEach(url => URL.revokeObjectURL(url));
   }, [previews]);
+
+  useEffect(() => {
+    if (!previewModal || previewModal.mode !== 'annotate') {
+      setIsDrawing(false);
+      return;
+    }
+
+    const image = modalImageRef.current;
+    const canvas = annotationCanvasRef.current;
+    if (!image || !canvas) {
+      return;
+    }
+
+    const syncCanvas = () => {
+      const rect = image.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+      }
+      setAnnotationPreview(previews[previewModal.index] || '');
+    };
+
+    if (image.complete) {
+      syncCanvas();
+    } else {
+      image.onload = syncCanvas;
+    }
+
+    window.addEventListener('resize', syncCanvas);
+    return () => {
+      window.removeEventListener('resize', syncCanvas);
+      image.onload = null;
+    };
+  }, [previewModal, previews]);
 
   const validate = () => {
     const errors: Record<string, string> = {};
@@ -96,6 +143,156 @@ export default function TicketFormPage() {
     URL.revokeObjectURL(previews[index]);
     setAttachments(prev => prev.filter((_, i) => i !== index));
     setPreviews(prev => prev.filter((_, i) => i !== index));
+    if (previewModal?.index === index) {
+      setPreviewModal(null);
+    }
+  };
+
+  const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = annotationCanvasRef.current;
+    if (!canvas) {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = annotationCanvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) {
+      return;
+    }
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    context.strokeStyle = brushColor;
+    context.lineWidth = brushSize;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    setIsDrawing(true);
+  };
+
+  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) {
+      return;
+    }
+
+    const canvas = annotationCanvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) {
+      return;
+    }
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    context.strokeStyle = brushColor;
+    context.lineWidth = brushSize;
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    refreshAnnotationPreview();
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) {
+      return;
+    }
+
+    const canvas = annotationCanvasRef.current;
+    const context = canvas?.getContext('2d');
+    context?.closePath();
+    setIsDrawing(false);
+    refreshAnnotationPreview();
+  };
+
+  const resetAnnotation = () => {
+    const canvas = annotationCanvasRef.current;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (previewModal) {
+      setAnnotationPreview(previews[previewModal.index] || '');
+    }
+  };
+
+  const refreshAnnotationPreview = () => {
+    const image = modalImageRef.current;
+    const annotationCanvas = annotationCanvasRef.current;
+    if (!image || !annotationCanvas) {
+      return;
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = image.naturalWidth || image.width;
+    exportCanvas.height = image.naturalHeight || image.height;
+    const exportContext = exportCanvas.getContext('2d');
+    if (!exportContext || exportCanvas.width === 0 || exportCanvas.height === 0) {
+      return;
+    }
+
+    exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    setAnnotationPreview(exportCanvas.toDataURL(attachments[previewModal?.index ?? 0]?.type || 'image/png'));
+  };
+
+  const saveAnnotation = () => {
+    if (!previewModal) {
+      return;
+    }
+
+    const image = modalImageRef.current;
+    const annotationCanvas = annotationCanvasRef.current;
+    if (!image || !annotationCanvas) {
+      return;
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = image.naturalWidth;
+    exportCanvas.height = image.naturalHeight;
+    const exportContext = exportCanvas.getContext('2d');
+    if (!exportContext) {
+      return;
+    }
+
+    exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+    exportCanvas.toBlob(blob => {
+      if (!blob) {
+        return;
+      }
+
+      const originalFile = attachments[previewModal.index];
+      const originalName = originalFile?.name || `annotated-${previewModal.index + 1}.png`;
+      const mimeType = blob.type || originalFile?.type || 'image/png';
+      const nextFile = new File([blob], originalName, { type: mimeType });
+      const nextPreview = URL.createObjectURL(blob);
+
+      setAttachments(prev => prev.map((file, index) => index === previewModal.index ? nextFile : file));
+      setPreviews(prev => prev.map((url, index) => {
+        if (index !== previewModal.index) {
+          return url;
+        }
+        URL.revokeObjectURL(url);
+        return nextPreview;
+      }));
+      setPreviewModal({ index: previewModal.index, mode: 'preview' });
+      setAnnotationPreview(nextPreview);
+      setIsDrawing(false);
+    }, attachments[previewModal.index]?.type || 'image/png');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,15 +308,28 @@ export default function TicketFormPage() {
 
     setSaving(true);
     try {
+      const ticketPayload = {
+        ...form,
+        category: form.category === 'AUTO' ? undefined : form.category,
+        priority: form.priority === 'AUTO' ? undefined : form.priority,
+      };
+
       if (attachments.length > 0) {
         // Use multipart upload
         const formData = new FormData();
-        const ticketBlob = new Blob([JSON.stringify(form)], { type: 'application/json' });
-        formData.append('ticket', ticketBlob);
-        attachments.forEach(f => formData.append('files', f));
+        const ticketFile = new File(
+          [JSON.stringify(ticketPayload)],
+          'ticket.json',
+          { type: 'application/json' }
+        );
+        formData.append('ticket', ticketFile);
+        attachments.forEach((file, index) => {
+          const safeFileName = file.name?.trim() || `attachment-${index + 1}.png`;
+          formData.append('files', file, safeFileName);
+        });
         await ticketApi.createWithFiles(formData);
       } else {
-        await ticketApi.create(form);
+        await ticketApi.create(ticketPayload);
       }
       navigate('/tickets');
     } catch (err: unknown) {
@@ -337,6 +547,26 @@ export default function TicketFormPage() {
                   >
                     <img src={src} alt={`Preview ${i + 1}`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-all" />
+                    <div className="absolute top-1.5 left-1.5 flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewModal({ index: i, mode: 'preview' })}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                        style={{ background: 'rgba(15,23,42,0.72)' }}
+                        aria-label="Preview image"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewModal({ index: i, mode: 'annotate' })}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                        style={{ background: 'rgba(124,58,237,0.78)' }}
+                        aria-label="Annotate image"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeAttachment(i)}
@@ -401,6 +631,131 @@ export default function TicketFormPage() {
           </div>
         </form>
       </LiquidGlassCard>
+
+      <AnimatePresence>
+        {previewModal && previews[previewModal.index] && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(2,6,23,0.82)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="w-full max-w-5xl rounded-3xl overflow-hidden border border-white/10"
+              style={{ background: 'rgba(15,23,42,0.96)', boxShadow: '0 24px 80px rgba(0,0,0,0.45)' }}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    {previewModal.mode === 'annotate' ? 'Annotate Evidence Photo' : 'Preview Evidence Photo'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {attachments[previewModal.index]?.name || `Image ${previewModal.index + 1}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModal(null)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:text-white"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                  aria-label="Close preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {previewModal.mode === 'annotate' && (
+                <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-white/10 bg-white/5">
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    Color
+                    <input
+                      type="color"
+                      value={brushColor}
+                      onChange={event => setBrushColor(event.target.value)}
+                      className="w-10 h-10 rounded-lg bg-transparent border border-white/10"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    Brush
+                    <input
+                      type="range"
+                      min="2"
+                      max="16"
+                      value={brushSize}
+                      onChange={event => setBrushSize(Number(event.target.value))}
+                    />
+                    <span className="text-xs text-slate-400 w-6">{brushSize}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={resetAnnotation}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-200 border border-white/10"
+                    style={{ background: 'rgba(255,255,255,0.05)' }}
+                  >
+                    <RotateCcw className="w-4 h-4" /> Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveAnnotation}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-white border border-emerald-400/20"
+                    style={{ background: 'rgba(16,185,129,0.18)' }}
+                  >
+                    <Save className="w-4 h-4" /> Save
+                  </button>
+                </div>
+              )}
+
+              <div className="max-h-[75vh] overflow-auto p-5">
+                <div className={`grid gap-5 ${previewModal.mode === 'annotate' ? 'lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]' : ''}`}>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-3">
+                      {previewModal.mode === 'annotate' ? 'Annotate On Preview' : 'Image Preview'}
+                    </p>
+                    <div className="relative mx-auto w-fit max-w-full">
+                      <img
+                        ref={modalImageRef}
+                        src={previews[previewModal.index]}
+                        alt={`Evidence ${previewModal.index + 1}`}
+                        className="block max-h-[68vh] max-w-full rounded-2xl"
+                      />
+                      {previewModal.mode === 'annotate' && (
+                        <canvas
+                          ref={annotationCanvasRef}
+                          className="absolute inset-0 z-10 rounded-2xl touch-none cursor-crosshair"
+                          onPointerDown={startDrawing}
+                          onPointerMove={draw}
+                          onPointerUp={stopDrawing}
+                          onPointerLeave={stopDrawing}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {previewModal.mode === 'annotate' && (
+                    <div className="lg:min-w-[280px]">
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-3">Live Result Preview</p>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                        <img
+                          src={annotationPreview || previews[previewModal.index]}
+                          alt={`Annotated preview ${previewModal.index + 1}`}
+                          className="block max-h-[52vh] w-full rounded-xl object-contain"
+                        />
+                      </div>
+                      <p className="mt-3 text-xs text-slate-400">
+                        Draw on the left image. The saved file will use the annotated preview shown here.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

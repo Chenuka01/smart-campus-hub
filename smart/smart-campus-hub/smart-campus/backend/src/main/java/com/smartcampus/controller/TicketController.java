@@ -7,6 +7,7 @@ import com.smartcampus.model.Ticket;
 import com.smartcampus.model.User;
 import com.smartcampus.service.FileStorageService;
 import com.smartcampus.service.TicketService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +35,7 @@ public class TicketController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Ticket> createTicket(
-            @RequestPart("ticket") TicketRequest request,
+            @Valid @RequestPart("ticket") TicketRequest request,
             @RequestPart(value = "files", required = false) List<MultipartFile> files,
             @AuthenticationPrincipal User user) throws IOException {
 
@@ -55,7 +56,7 @@ public class TicketController {
 
     @PostMapping("/simple")
     public ResponseEntity<Ticket> createTicketSimple(
-            @RequestBody TicketRequest request,
+            @Valid @RequestBody TicketRequest request,
             @AuthenticationPrincipal User user) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ticketService.createTicket(request, user, new ArrayList<>()));
@@ -91,7 +92,7 @@ public class TicketController {
     @PutMapping("/{id}")
     public ResponseEntity<Ticket> updateTicket(
             @PathVariable String id,
-            @RequestBody TicketRequest request,
+            @Valid @RequestBody TicketRequest request,
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
     }

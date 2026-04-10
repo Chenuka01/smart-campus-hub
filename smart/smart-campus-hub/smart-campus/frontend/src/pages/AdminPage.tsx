@@ -121,7 +121,13 @@ export default function AdminPage() {
       setBookings(res.data);
       setActionModal(null);
       setReason('');
-    } catch { alert('Action failed'); } finally { setActionLoading(false); }
+    } catch {
+      alert('Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleAssignTicket = async (id: string, techId: string, techName: string) => {
     try {
       // Optimistically update the UI to show the assignment immediately

@@ -303,11 +303,7 @@ public class TicketService {
                 .map(technician -> {
                     ticket.setAssignedTo(technician.getId());
                     ticket.setAssignedToName(technician.getName());
-                    // Keep status as OPEN until work actually starts or manual acceptance, 
-                    // or let it be auto-assigned but still OPEN if that's the preferred dashboard logic.
-                    // However, 'Open Tickets' in dashboard specifically counts status == 'OPEN'. 
-                    // If we want auto-assigned tickets to show up in 'Open Tickets', we stay in OPEN.
-                    ticket.setStatus(Ticket.TicketStatus.OPEN); 
+                    ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
                     return technician;
                 })
                 .orElse(null);
