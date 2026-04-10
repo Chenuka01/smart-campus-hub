@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
-import { Building2, Mail, Lock, User, Eye, EyeOff, ArrowRight, Sparkles, Zap, Shield, Wrench } from 'lucide-react';
+import { Building2, Mail, Lock, User, Eye, EyeOff, ArrowRight, Sparkles, Zap, Shield, Wrench, HelpCircle } from 'lucide-react';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import NeuButton from '@/components/NeuButton';
 import { celebrationVariants, errorShakeVariants } from '@/lib/animations';
@@ -10,7 +10,6 @@ import { celebrationVariants, errorShakeVariants } from '@/lib/animations';
 // Your Google OAuth Client ID from Google Cloud Console
 // Set this in frontend/.env as VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-let initializedGoogleClientId: string | null = null;
 
 // Type declarations for Google Identity Services
 declare global {
@@ -46,6 +45,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const googleLoginRef = useRef(googleLoginWithToken);
+  const googleInitializedRef = useRef(false);
 
   useEffect(() => {
     googleLoginRef.current = googleLoginWithToken;
@@ -53,42 +53,40 @@ export default function LoginPage() {
 
   // Initialize Google Identity Services when the component mounts
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return; // Skip if no Client ID configured
+    if (!GOOGLE_CLIENT_ID || googleInitializedRef.current) return; // Skip if no Client ID or already initialized
 
     const initGoogle = () => {
-      if (!window.google?.accounts?.id) return;
+      if (!window.google?.accounts?.id || googleInitializedRef.current) return;
 
-      if (initializedGoogleClientId !== GOOGLE_CLIENT_ID) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: async (response) => {
-            // response.credential is the Google ID token — send to backend for verification
-            setError('');
-            setLoading(true);
-            try {
-              await googleLoginRef.current(response.credential);
-              setSuccess(true);
-              setTimeout(() => navigate('/dashboard'), 600);
-            } catch (err: unknown) {
-              const error = err as { response?: { data?: { message?: string } } };
-              setError(
-                error.response?.data?.message ||
-                'Google sign-in failed. Check your Google OAuth authorized origins and backend URL, then try again.'
-              );
-              setShakeKey(k => k + 1);
-            } finally {
-              setLoading(false);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-        initializedGoogleClientId = GOOGLE_CLIENT_ID;
-      }
+      // Initialize Google Sign-in only once
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          // response.credential is the Google ID token — send to backend for verification
+          setError('');
+          setLoading(true);
+          try {
+            await googleLoginRef.current(response.credential);
+            setSuccess(true);
+            setTimeout(() => navigate('/dashboard'), 600);
+          } catch (err: unknown) {
+            const error = err as { response?: { data?: { message?: string } } };
+            setError(
+              error.response?.data?.message ||
+              'Google sign-in failed. Check your Google OAuth authorized origins and backend URL, then try again.'
+            );
+            setShakeKey(k => k + 1);
+          } finally {
+            setLoading(false);
+          }
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      googleInitializedRef.current = true;
 
       // Render the official Google button into our styled container
-      if (googleBtnRef.current) {
-        googleBtnRef.current.innerHTML = '';
+      if (googleBtnRef.current && googleBtnRef.current.children.length === 0) {
         window.google.accounts.id.renderButton(googleBtnRef.current, {
           theme: 'filled_black',
           size: 'large',
@@ -427,6 +425,17 @@ export default function LoginPage() {
               >
                 {isLogin ? 'Sign In' : 'Create Account'}
               </NeuButton>
+
+              {isLogin && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="w-full py-2.5 text-sm text-violet-300 hover:text-violet-200 font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  Forgot Password?
+                </button>
+              )}
 
               {/* Divider */}
               <div className="flex items-center gap-3 my-1">

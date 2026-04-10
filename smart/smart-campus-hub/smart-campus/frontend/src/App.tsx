@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { SocketProvider } from '@/context/SocketContext';
 import Layout from '@/components/Layout';
 import LoginPage from '@/pages/LoginPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import FacilitiesPage from '@/pages/FacilitiesPage';
 import FacilityFormPage from '@/pages/FacilityFormPage';
@@ -49,6 +50,7 @@ function AppRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
         
         <Route path="/dashboard" element={<ProtectedRoute>{isTechnician ? <Navigate to="/technician" replace /> : <DashboardPage />}</ProtectedRoute>} />
         

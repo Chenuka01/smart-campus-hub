@@ -32,8 +32,10 @@ public class CommentController {
     }
 
     @GetMapping("/ticket/{ticketId}")
-    public ResponseEntity<List<Comment>> getTicketComments(@PathVariable String ticketId) {
-        return ResponseEntity.ok(commentService.getTicketComments(ticketId));
+    public ResponseEntity<List<Comment>> getTicketComments(
+            @PathVariable String ticketId,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(commentService.getTicketComments(ticketId, user));
     }
 
     @PutMapping("/{commentId}")

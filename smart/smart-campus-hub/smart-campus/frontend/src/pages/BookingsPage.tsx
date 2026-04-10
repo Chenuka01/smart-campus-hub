@@ -80,7 +80,7 @@ export default function BookingsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
-        <p className="text-sm text-slate-500 animate-pulse">Loading bookings…</p>
+        <p className="text-sm text-slate-500 animate-pulse">Loading bookings...</p>
       </div>
     );
   }
@@ -128,7 +128,7 @@ export default function BookingsPage() {
               }}
             >
               {cfg && <cfg.icon className={`inline w-3.5 h-3.5 mr-1.5 ${cfg.color}`} />}
-              {s || 'All'} <span className="opacity-60 ml-1">({count})</span>
+              {cfg?.label || 'All'} <span className="opacity-60 ml-1">({count})</span>   
             </motion.button>
           );
         })}
@@ -252,7 +252,7 @@ export default function BookingsPage() {
                     onChange={e => setReason(e.target.value)}
                     rows={3}
                     className="glass-input w-full px-4 py-3 rounded-xl text-sm resize-none"
-                    placeholder={`Reason for ${actionModal.action}…`}
+                    placeholder={`Reason for ${actionModal.action}...`}
                   />
                 </div>
               )}

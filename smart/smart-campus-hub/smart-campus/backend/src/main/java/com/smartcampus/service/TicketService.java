@@ -130,7 +130,22 @@ public class TicketService {
         return saved;
     }
 
-    public Ticket getTicketById(String id) {
+    public Ticket getTicketById(String id, User user) {
+        Ticket ticket = ticketRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
+
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> List.of("ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN").contains(r.name()));
+        boolean isOwner = ticket.getReportedBy().equals(user.getId());
+
+        if (!isStaff && !isOwner) {
+            throw new RuntimeException("Not authorized to view this ticket");
+        }
+
+        return applySlaState(ticket);
+    }
+
+    private Ticket getTicketById(String id) {
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
         return applySlaState(ticket);
@@ -163,14 +178,15 @@ public class TicketService {
     public Ticket updateTicket(String ticketId, TicketRequest request, User user) {
         Ticket ticket = getTicketById(ticketId);
 
-        // Security check: Only reporter or Admin can update.
+        // Security check: Only reporter or staff can update.
         // Also only if it's still OPEN (standard policy)
-        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r.name().contains("ADMIN"));
-        if (!ticket.getReportedBy().equals(user.getId()) && !isAdmin) {
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> List.of("ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN").contains(r.name()));
+        if (!ticket.getReportedBy().equals(user.getId()) && !isStaff) {
             throw new RuntimeException("Not authorized to edit this ticket");
         }
 
-        if (ticket.getStatus() != Ticket.TicketStatus.OPEN && !isAdmin) {
+        if (ticket.getStatus() != Ticket.TicketStatus.OPEN && !isStaff) {
             throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
         }
 
@@ -202,11 +218,12 @@ public class TicketService {
     public void deleteTicketByUser(String ticketId, User user) {
         Ticket ticket = getTicketById(ticketId);
 
-        // Only reporter (if OPEN) or Admin can delete
-        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r.name().contains("ADMIN"));
+        // Only reporter (if OPEN) or staff can delete
+        boolean isStaff = user.getRoles().stream()
+                .anyMatch(r -> List.of("ADMIN", "SUPER_ADMIN", "MANAGER", "TECHNICIAN").contains(r.name()));
         boolean isOwner = ticket.getReportedBy().equals(user.getId());
 
-        if (isAdmin) {
+        if (isStaff) {
             ticketRepository.deleteById(ticketId);
             return;
         }

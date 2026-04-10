@@ -1,5 +1,6 @@
 package com.smartcampus.service;
 
+import com.smartcampus.dto.NotificationAnalyticsResponse;
 import com.smartcampus.model.Notification;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.NotificationRepository;
@@ -11,10 +12,17 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public class NotificationService {
@@ -146,6 +154,112 @@ public class NotificationService {
         });
     }
 
+    public NotificationAnalyticsResponse getAnalyticsSnapshot() {
+        List<Notification> notifications = notificationRepository.findAll().stream()
+                .sorted(Comparator.comparing(Notification::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .toList();
+
+        Map<String, User> usersById = userRepository.findAll().stream()
+                .filter(user -> user.getId() != null)
+                .collect(Collectors.toMap(User::getId, Function.identity(), (left, right) -> left));
+
+        long totalNotifications = notifications.size();
+        long unreadNotifications = notifications.stream()
+                .filter(notification -> !notification.isRead())
+                .count();
+        long uniqueRecipients = notifications.stream()
+                .map(Notification::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
+
+        List<NotificationAnalyticsResponse.ActiveUserMetric> mostActiveUsers = notifications.stream()
+                .filter(notification -> notification.getUserId() != null)
+                .collect(Collectors.groupingBy(Notification::getUserId, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .limit(6)
+                .map(entry -> {
+                    User user = usersById.get(entry.getKey());
+                    String name = user != null && user.getName() != null && !user.getName().isBlank()
+                            ? user.getName()
+                            : "Unknown User";
+                    String email = user != null && user.getEmail() != null && !user.getEmail().isBlank()
+                            ? user.getEmail()
+                            : "No email available";
+                    return new NotificationAnalyticsResponse.ActiveUserMetric(
+                            entry.getKey(),
+                            name,
+                            email,
+                            entry.getValue(),
+                            roundToOneDecimal(totalNotifications == 0 ? 0 : (entry.getValue() * 100.0) / totalNotifications)
+                    );
+                })
+                .toList();
+
+        List<NotificationAnalyticsResponse.EventMetric> mostTriggeredEvents = notifications.stream()
+                .filter(notification -> notification.getType() != null)
+                .collect(Collectors.groupingBy(notification -> notification.getType().name(), Collectors.counting()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .limit(6)
+                .map(entry -> new NotificationAnalyticsResponse.EventMetric(
+                        entry.getKey(),
+                        humanizeNotificationType(entry.getKey()),
+                        entry.getValue(),
+                        roundToOneDecimal(totalNotifications == 0 ? 0 : (entry.getValue() * 100.0) / totalNotifications)
+                ))
+                .toList();
+
+        Map<Integer, Long> hourlyCounts = notifications.stream()
+                .filter(notification -> notification.getCreatedAt() != null)
+                .collect(Collectors.groupingBy(notification -> notification.getCreatedAt().getHour(), Collectors.counting()));
+
+        List<NotificationAnalyticsResponse.HourlyMetric> peakNotificationTimes = IntStream.range(0, 24)
+                .mapToObj(hour -> new NotificationAnalyticsResponse.HourlyMetric(
+                        hour,
+                        formatHourLabel(hour),
+                        hourlyCounts.getOrDefault(hour, 0L)
+                ))
+                .toList();
+
+        NotificationAnalyticsResponse.HourlyMetric busiestHour = peakNotificationTimes.stream()
+                .max(Comparator.comparingLong(NotificationAnalyticsResponse.HourlyMetric::count))
+                .orElse(new NotificationAnalyticsResponse.HourlyMetric(0, "No activity", 0));
+
+        LocalDate today = LocalDate.now();
+        Map<LocalDate, Long> recentCounts = notifications.stream()
+                .filter(notification -> notification.getCreatedAt() != null)
+                .map(Notification::getCreatedAt)
+                .map(LocalDateTime::toLocalDate)
+                .filter(date -> !date.isBefore(today.minusDays(6)))
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        List<NotificationAnalyticsResponse.DailyMetric> recentVolume = IntStream.rangeClosed(0, 6)
+                .mapToObj(offset -> today.minusDays(6L - offset))
+                .map(date -> new NotificationAnalyticsResponse.DailyMetric(
+                        date.toString(),
+                        date.format(DateTimeFormatter.ofPattern("MMM d")),
+                        recentCounts.getOrDefault(date, 0L)
+                ))
+                .toList();
+
+        return new NotificationAnalyticsResponse(
+                totalNotifications,
+                unreadNotifications,
+                roundToOneDecimal(totalNotifications == 0 ? 0 : ((totalNotifications - unreadNotifications) * 100.0) / totalNotifications),
+                uniqueRecipients,
+                totalNotifications == 0 ? "No activity" : busiestHour.label(),
+                busiestHour.count(),
+                mostActiveUsers,
+                mostTriggeredEvents,
+                peakNotificationTimes,
+                recentVolume
+        );
+    }
+
     private boolean isWithinDndWindow(User user) {
         if (!user.isDndEnabled() || user.getDndStartTime() == null || user.getDndEndTime() == null) {
             return false;
@@ -168,6 +282,22 @@ public class NotificationService {
 
     public void deleteNotification(@NonNull String notificationId) {
         notificationRepository.deleteById(notificationId);
+    }
+
+    private String humanizeNotificationType(String typeName) {
+        return List.of(typeName.split("_")).stream()
+                .map(part -> part.substring(0, 1) + part.substring(1).toLowerCase())
+                .collect(Collectors.joining(" "));
+    }
+
+    private String formatHourLabel(int hour) {
+        int displayHour = hour % 12 == 0 ? 12 : hour % 12;
+        String meridiem = hour < 12 ? "AM" : "PM";
+        return displayHour + ":00 " + meridiem;
+    }
+
+    private double roundToOneDecimal(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 }
 

@@ -1,11 +1,13 @@
 package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
+import com.smartcampus.dto.NotificationAnalyticsResponse;
 import com.smartcampus.model.Notification;
 import com.smartcampus.model.User;
 import com.smartcampus.service.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,6 +37,12 @@ public class NotificationController {
     public ResponseEntity<Map<String, Long>> getUnreadCount(@AuthenticationPrincipal User user) {
         long count = notificationService.getUnreadCount(user.getId());
         return ResponseEntity.ok(Map.of("count", count));
+    }
+
+    @GetMapping("/analytics")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<NotificationAnalyticsResponse> getNotificationAnalytics() {
+        return ResponseEntity.ok(notificationService.getAnalyticsSnapshot());
     }
 
     @PutMapping("/{id}/read")

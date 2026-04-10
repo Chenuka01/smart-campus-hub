@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, facilityApi, bookingApi, ticketApi } from '@/lib/api';
 import type { User, Facility, Booking, Ticket } from '@/lib/types';
-import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle, Search, Filter } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, statCounterVariants, fadeScaleVariants } from '@/lib/animations';
@@ -27,6 +27,16 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [roleModal, setRoleModal] = useState<{ userId: string; currentRoles: string[] } | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+
+  // Search & Filter States
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+
+  const [facilitySearch, setFacilitySearch] = useState('');
+  const [facilityTypeFilter, setFacilityTypeFilter] = useState('ALL');
+
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('ALL');
 
   useEffect(() => {
     if (!isAdmin && !isManager) return;
@@ -91,9 +101,13 @@ export default function AdminPage() {
   ].filter(d => d.value > 0);
 
   const facilityTypeData = facilities.reduce((acc, f) => {
-    const type = f.type.replace(/_/g, ' ');
+    const type = f.type ? f.type.replace(/_/g, ' ') : 'UNKNOWN';
     const existing = acc.find(a => a.name === type);
-    if (existing) existing.value++; else acc.push({ name: type, value: 1 });
+    if (existing) {
+      existing.value++;
+    } else {
+      acc.push({ name: type, value: 1 });
+    }
     return acc;
   }, [] as { name: string; value: number }[]);
 
@@ -104,6 +118,26 @@ export default function AdminPage() {
     { id: 'bookings', label: 'Bookings', icon: CalendarDays },
     { id: 'analytics', label: 'Analytics', icon: PieChart },
   ];
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.name?.toLowerCase().includes(userSearch.toLowerCase()) || 
+                          u.email?.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesRole = userRoleFilter === 'ALL' || (u.roles && u.roles.includes(userRoleFilter));
+    return matchesSearch && matchesRole;
+  });
+
+  const filteredFacilities = facilities.filter(f => {
+    const matchesSearch = f.name?.toLowerCase().includes(facilitySearch.toLowerCase());
+    const matchesType = facilityTypeFilter === 'ALL' || f.type === facilityTypeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const filteredBookings = bookings.filter(b => {
+    const matchesSearch = b.userName?.toLowerCase().includes(bookingSearch.toLowerCase()) ||
+                          b.facilityName?.toLowerCase().includes(bookingSearch.toLowerCase());
+    const matchesStatus = bookingStatusFilter === 'ALL' || b.status === bookingStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const overviewStats = [
     { label: 'Total Users', value: users.length, icon: Users, gradient: 'from-violet-500 to-indigo-500', glow: 'rgba(139,92,246,0.4)' },
@@ -227,7 +261,35 @@ export default function AdminPage() {
 
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <motion.div key="users" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div key="users" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
+              </div>
+              <div className="relative min-w-[160px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <select
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 appearance-none transition-colors"
+                  style={{ backgroundImage: 'none' }}
+                >
+                  <option value="ALL" className="bg-slate-900">All Roles</option>
+                  <option value="USER" className="bg-slate-900">User</option>
+                  <option value="ADMIN" className="bg-slate-900">Admin</option>
+                  <option value="TECHNICIAN" className="bg-slate-900">Technician</option>
+                  <option value="MANAGER" className="bg-slate-900">Manager</option>
+                  <option value="SUPER_ADMIN" className="bg-slate-900">Super Admin</option>
+                </select>
+              </div>
+            </div>
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -239,7 +301,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u, i) => (
+                    {filteredUsers.map((u, i) => (
                       <motion.tr
                         key={u.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -359,9 +421,32 @@ export default function AdminPage() {
           <motion.div key="facilities" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-lg font-bold text-white">Manage Facilities</h3>
-              <NeuButton size="sm" variant="primary" onClick={() => window.location.href='/admin/facility/new'}>
-                Add Facility
-              </NeuButton>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search facilities..."
+                  value={facilitySearch}
+                  onChange={(e) => setFacilitySearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
+              </div>
+              <div className="relative min-w-[160px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <select
+                  value={facilityTypeFilter}
+                  onChange={(e) => setFacilityTypeFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 appearance-none transition-colors"
+                  style={{ backgroundImage: 'none' }}
+                >
+                  <option value="ALL" className="bg-slate-900">All Types</option>
+                  {[...Array.from(new Set(facilities.map(f => f.type)))].filter(Boolean).map(type => (
+                    <option key={type} value={type} className="bg-slate-900">{type.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
@@ -374,7 +459,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {facilities.map((f, i) => (
+                    {filteredFacilities.map((f, i) => (
                       <motion.tr
                         key={f.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -384,7 +469,7 @@ export default function AdminPage() {
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                       >
                         <td className="px-4 py-4 text-sm font-semibold text-white">{f.name}</td>
-                        <td className="px-4 py-4 text-xs text-slate-400 uppercase tracking-wider">{f.type.replace(/_/g, ' ')}</td>
+                          <td className="px-4 py-4 text-xs text-slate-400 uppercase tracking-wider">{f.type ? f.type.replace(/_/g, ' ') : 'N/A'}</td>
                         <td className="px-4 py-4">
                           <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
                             f.status === 'ACTIVE' 
@@ -429,6 +514,34 @@ export default function AdminPage() {
         {activeTab === 'bookings' && (
           <motion.div key="bookings" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
             <h3 className="text-lg font-bold text-white mb-2">Manage Bookings</h3>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search bookings..."
+                  value={bookingSearch}
+                  onChange={(e) => setBookingSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-slate-400 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
+              </div>
+              <div className="relative min-w-[160px]">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <select
+                  value={bookingStatusFilter}
+                  onChange={(e) => setBookingStatusFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500/50 appearance-none transition-colors"
+                  style={{ backgroundImage: 'none' }}
+                >
+                  <option value="ALL" className="bg-slate-900">All Statuses</option>
+                  <option value="PENDING" className="bg-slate-900">Pending</option>
+                  <option value="APPROVED" className="bg-slate-900">Approved</option>
+                  <option value="COMPLETED" className="bg-slate-900">Completed</option>
+                  <option value="REJECTED" className="bg-slate-900">Rejected</option>
+                  <option value="CANCELLED" className="bg-slate-900">Cancelled</option>
+                </select>
+              </div>
+            </div>
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -440,7 +553,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bookings.map((b, i) => (
+                    {filteredBookings.map((b, i) => (
                       <motion.tr
                         key={b.id}
                         initial={{ opacity: 0, x: -10 }}

@@ -8,6 +8,7 @@ import com.smartcampus.exception.UnauthorizedException;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
 import com.smartcampus.security.JwtTokenProvider;
+import com.smartcampus.security.AuditLog;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ public class AuthService {
         this.tokenProvider = tokenProvider;
     }
 
+    @AuditLog(action = "CREATE_USER", resourceType = "User")
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email already registered");
@@ -55,6 +57,7 @@ public class AuthService {
         return new AuthResponse(token, user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(), roleStrings);
     }
 
+    @AuditLog(action = "LOGIN", resourceType = "User")
     public AuthResponse login(AuthRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
@@ -72,6 +75,7 @@ public class AuthService {
         return new AuthResponse(token, user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(), roleStrings);
     }
 
+    @AuditLog(action = "UPDATE_PROFILE", resourceType = "User")
     public AuthResponse updateProfile(String userId, String name, String email) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BadRequestException("User not found"));
@@ -93,6 +97,7 @@ public class AuthService {
                 user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl(), roleStrings);
     }
 
+    @AuditLog(action = "GOOGLE_AUTH", resourceType = "User")
     public AuthResponse googleAuth(String email, String name, String avatarUrl, String providerId) {
         User user = userRepository.findByEmail(email).orElse(null);
 
@@ -141,6 +146,7 @@ public class AuthService {
                 .orElseThrow(() -> new BadRequestException("User not found"));
     }
 
+    @AuditLog(action = "UPDATE_ROLES", resourceType = "User", logParameters = true)
     public User updateUserRoles(String userId, Set<User.Role> roles) {
         User user = getUserById(userId);
         user.setRoles(roles);

@@ -59,7 +59,7 @@ class CommentServiceTest {
     @Test
     @DisplayName("addComment: persists comment with correct author details")
     void addComment_validInput_persistsCorrectAuthor() {
-        when(ticketService.getTicketById("ticket-1")).thenReturn(ticket);
+        when(ticketService.getTicketById(eq("ticket-1"), any(User.class))).thenReturn(ticket);
 
         Comment saved = new Comment();
         saved.setId("comment-1");
@@ -77,7 +77,7 @@ class CommentServiceTest {
     @DisplayName("addComment: sends notification when commenter is NOT the ticket reporter")
     void addComment_differentUser_sendsNotification() {
         ticket.setReportedBy("user-1"); // reporter
-        when(ticketService.getTicketById("ticket-1")).thenReturn(ticket);
+        when(ticketService.getTicketById(eq("ticket-1"), any(User.class))).thenReturn(ticket);
         when(commentRepository.save(any(Comment.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // otherUser (admin) comments — should notify user-1
@@ -91,7 +91,7 @@ class CommentServiceTest {
     void addComment_sameUser_doesNotSendNotification() {
         ticket.setReportedBy("user-1");
         ticket.setAssignedTo(null);
-        when(ticketService.getTicketById("ticket-1")).thenReturn(ticket);
+        when(ticketService.getTicketById(eq("ticket-1"), any(User.class))).thenReturn(ticket);
         when(commentRepository.save(any(Comment.class))).thenAnswer(inv -> inv.getArgument(0));
 
         commentService.addComment("ticket-1", "Adding more details", author);

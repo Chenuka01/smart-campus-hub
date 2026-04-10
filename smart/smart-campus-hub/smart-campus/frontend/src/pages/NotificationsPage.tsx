@@ -1,17 +1,44 @@
-﻿import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Bell,
+  CalendarClock,
+  Check,
+  CheckCheck,
+  CheckCircle2,
+  Info,
+  Mail,
+  MessageSquare,
+  Moon,
+  Save,
+  Settings2,
+  Sparkles,
+  Ticket,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { notificationApi } from '@/lib/api';
-import type { Notification } from '@/lib/types';
-import { Bell, CheckCircle2, XCircle, Ticket, MessageSquare, Check, CheckCheck, Trash2, Info, Settings2, Moon, CalendarClock, Mail, Save } from 'lucide-react';
+import type { Notification, NotificationAnalytics } from '@/lib/types';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
-import { containerVariants, itemVariants, fadeScaleVariants } from '@/lib/animations';
+import NotificationAnalyticsPanel from '@/components/NotificationAnalyticsPanel';
+import { containerVariants, fadeScaleVariants, itemVariants } from '@/lib/animations';
+
+type NotificationView = 'analytics' | 'all' | 'unread' | 'preferences';
 
 const typeIcons: Record<string, typeof Bell> = {
-  BOOKING_APPROVED: CheckCircle2, BOOKING_REJECTED: XCircle, BOOKING_CANCELLED: XCircle,
-  TICKET_CREATED: Ticket, TICKET_ASSIGNED: Ticket, TICKET_STATUS_CHANGED: Info,
-  TICKET_RESOLVED: CheckCircle2, TICKET_CLOSED: CheckCircle2, TICKET_REJECTED: XCircle,
-  COMMENT_ADDED: MessageSquare, SYSTEM: Bell,
+  BOOKING_APPROVED: CheckCircle2,
+  BOOKING_REJECTED: XCircle,
+  BOOKING_CANCELLED: XCircle,
+  TICKET_CREATED: Ticket,
+  TICKET_ASSIGNED: Ticket,
+  TICKET_STATUS_CHANGED: Info,
+  TICKET_RESOLVED: CheckCircle2,
+  TICKET_CLOSED: CheckCircle2,
+  TICKET_REJECTED: XCircle,
+  COMMENT_ADDED: MessageSquare,
+  SYSTEM: Bell,
 };
 
 const typeColors: Record<string, { glow: string; glassColor: string; textColor: string }> = {
@@ -29,9 +56,14 @@ const typeColors: Record<string, { glow: string; glassColor: string; textColor: 
 };
 
 export default function NotificationsPage() {
+  const { isAdmin } = useAuth();
+  const canViewAnalytics = isAdmin;
+
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [analytics, setAnalytics] = useState<NotificationAnalytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'preferences'>('all');
+  const [view, setView] = useState<NotificationView>(canViewAnalytics ? 'analytics' : 'all');
   const [prefs, setPrefs] = useState({
     bookingAlerts: true,
     ticketUpdates: true,
@@ -42,34 +74,80 @@ export default function NotificationsPage() {
     emailNotes: true,
   });
 
-    const fetchPreferences = async () => {
-    try {
-      const res = await notificationApi.getPreferences();
-      setPrefs(p => ({
-        ...p,
-        emailNotes: res.data.email,
-        dndMode: res.data.dndMode,
-        dndStart: res.data.dndStart || '22:00',
-        dndEnd: res.data.dndEnd || '07:00',
-        bookingAlerts: res.data.bookingAlerts,
-        ticketUpdates: res.data.ticketUpdates,
-        comments: res.data.comments
-      }));
-    } catch { /* ignore */ }
-  };
-  useEffect(() => { 
-    fetchNotifications(); 
-    fetchPreferences();
-  }, []);
+  useEffect(() => {
+    if (!canViewAnalytics && view === 'analytics') {
+      setView('all');
+    }
+  }, [canViewAnalytics, view]);
 
-  const fetchNotifications = async () => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPageData = async () => {
+      setLoading(true);
+
+      const [notificationsResult, preferencesResult, analyticsResult] = await Promise.allSettled([
+        notificationApi.getAll(),
+        notificationApi.getPreferences(),
+        canViewAnalytics ? notificationApi.getAnalytics() : Promise.resolve(null),
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (notificationsResult.status === 'fulfilled') {
+        setNotifications(notificationsResult.value.data);
+      }
+
+      if (preferencesResult.status === 'fulfilled') {
+        const data = preferencesResult.value.data;
+        setPrefs((current) => ({
+          ...current,
+          emailNotes: data.email,
+          dndMode: data.dndMode,
+          dndStart: data.dndStart || '22:00',
+          dndEnd: data.dndEnd || '07:00',
+          bookingAlerts: data.bookingAlerts,
+          ticketUpdates: data.ticketUpdates,
+          comments: data.comments,
+        }));
+      }
+
+      if (canViewAnalytics) {
+        if (analyticsResult.status === 'fulfilled' && analyticsResult.value) {
+          setAnalytics(analyticsResult.value.data);
+          setAnalyticsError(null);
+        } else {
+          setAnalytics(null);
+          setAnalyticsError('Analytics are temporarily unavailable.');
+        }
+      }
+
+      setLoading(false);
+    };
+
+    loadPageData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [canViewAnalytics]);
+
+  const refreshAnalytics = async () => {
+    if (!canViewAnalytics) {
+      return;
+    }
     try {
-      const res = await notificationApi.getAll();
-      setNotifications(res.data);
-    } catch { /* ignore */ } finally { setLoading(false); }
+      const res = await notificationApi.getAnalytics();
+      setAnalytics(res.data);
+      setAnalyticsError(null);
+    } catch {
+      setAnalyticsError('Analytics are temporarily unavailable.');
+    }
   };
 
-    const handleSavePreferences = async () => {
+  const handleSavePreferences = async () => {
     try {
       await notificationApi.updatePreferences({
         email: prefs.emailNotes,
@@ -78,95 +156,152 @@ export default function NotificationsPage() {
         dndEnd: prefs.dndEnd,
         bookingAlerts: prefs.bookingAlerts,
         ticketUpdates: prefs.ticketUpdates,
-        comments: prefs.comments
+        comments: prefs.comments,
       });
       alert('Preferences saved successfully! Check your email inbox.');
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
-      alert('Failed to save preferences: \n\n' + errorMessage);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Unknown error occurred';
+      alert(`Failed to save preferences:\n\n${errorMessage}`);
     }
   };
+
   const handleMarkAsRead = async (id: string) => {
     try {
       await notificationApi.markAsRead(id);
-      setNotifications(n => n.map(notif => notif.id === id ? { ...notif, read: true } : notif));
-    } catch { /* ignore */ }
+      setNotifications((current) => current.map((notification) => (
+        notification.id === id ? { ...notification, read: true } : notification
+      )));
+      void refreshAnalytics();
+    } catch {
+      // ignore
+    }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await notificationApi.markAllAsRead();
-      setNotifications(n => n.map(notif => ({ ...notif, read: true })));
-    } catch { /* ignore */ }
+      setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+      void refreshAnalytics();
+    } catch {
+      // ignore
+    }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await notificationApi.delete(id);
-      setNotifications(n => n.filter(notif => notif.id !== id));
-    } catch { /* ignore */ }
+      setNotifications((current) => current.filter((notification) => notification.id !== id));
+      void refreshAnalytics();
+    } catch {
+      // ignore
+    }
   };
 
-  const filtered = filter === 'unread' ? notifications.filter(n => !n.read) : notifications;
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const filteredNotifications = view === 'unread'
+    ? notifications.filter((notification) => !notification.read)
+    : notifications;
+
+  const tabs = canViewAnalytics
+    ? [
+        { id: 'analytics' as const, label: 'Analytics' },
+        { id: 'all' as const, label: `All (${notifications.length})` },
+        { id: 'unread' as const, label: `Unread (${unreadCount})` },
+        { id: 'preferences' as const, label: 'Preferences' },
+      ]
+    : [
+        { id: 'all' as const, label: `All (${notifications.length})` },
+        { id: 'unread' as const, label: `Unread (${unreadCount})` },
+        { id: 'preferences' as const, label: 'Preferences' },
+      ];
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <div className="w-10 h-10 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
-        <p className="text-sm text-slate-500 animate-pulse">Loading notificationsâ€¦</p>
+        <p className="text-sm text-slate-500 animate-pulse">Loading notifications...</p>
       </div>
     );
   }
 
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 pb-8 max-w-3xl mx-auto">
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className={`space-y-6 pb-8 ${canViewAnalytics ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto'}`}
+    >
+      <motion.div variants={itemVariants} className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            <span className="text-gradient">Notifications</span>
+          {canViewAnalytics && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-rose-200 border border-rose-400/20 bg-rose-500/10">
+              <Sparkles className="w-3.5 h-3.5 text-rose-300" />
+              Admin Intelligence
+            </div>
+          )}
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            {canViewAnalytics ? (
+              <>Notification <span className="text-gradient">Intelligence</span></>
+            ) : (
+              <span className="text-gradient">Notifications</span>
+            )}
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            {unreadCount > 0
-              ? <span className="text-violet-400 font-semibold">{unreadCount} unread notification{unreadCount > 1 ? 's' : ''}</span>
-              : 'You\'re all caught up! ✨'}
+          <p className="text-slate-400 text-sm mt-2 max-w-2xl">
+            {view === 'analytics' && canViewAnalytics
+              ? 'Advanced admin dashboard for user activity, event pressure, and the busiest notification windows.'
+              : unreadCount > 0
+              ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''} waiting in your inbox.`
+              : 'You are all caught up. New alerts will appear here as campus events happen.'}
           </p>
         </div>
-        {unreadCount > 0 && (
-          <NeuButton variant="secondary" size="md" icon={<CheckCheck className="w-4 h-4" />} iconPosition="left" onClick={handleMarkAllAsRead}>
+
+        {view !== 'preferences' && view !== 'analytics' && unreadCount > 0 && (
+          <NeuButton
+            variant="secondary"
+            size="md"
+            icon={<CheckCheck className="w-4 h-4" />}
+            iconPosition="left"
+            onClick={handleMarkAllAsRead}
+          >
             Mark all read
           </NeuButton>
         )}
       </motion.div>
 
-      {/* Filter Tabs */}
-      <motion.div variants={itemVariants} className="flex gap-2">
-        {(['all', 'unread', 'preferences'] as const).map(f => (
+      <motion.div variants={itemVariants} className="flex flex-wrap gap-2">
+        {tabs.map((tab) => (
           <motion.button
-            key={f}
+            key={tab.id}
             whileHover={{ scale: 1.03, y: -1 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => setFilter(f)}
-            className="px-5 py-2.5 text-sm font-bold rounded-xl transition-all capitalize"
-            style={filter === f ? {
+            onClick={() => setView(tab.id)}
+            className="px-5 py-2.5 text-sm font-bold rounded-xl transition-all"
+            style={view === tab.id ? {
               background: 'rgba(139,92,246,0.2)',
-              border: '1px solid rgba(139,92,246,0.4)',
-              color: '#a78bfa',
-              boxShadow: '0 0 12px rgba(139,92,246,0.2)',
+              border: '1px solid rgba(139,92,246,0.35)',
+              color: '#c4b5fd',
+              boxShadow: '0 0 12px rgba(139,92,246,0.18)',
             } : {
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.07)',
               color: '#64748b',
             }}
           >
-            {f === 'all' ? `All (${notifications.length})` : f === 'unread' ? `Unread (${unreadCount})` : 'Preferences'}
+            {tab.label}
           </motion.button>
         ))}
       </motion.div>
 
-      {filter === 'preferences' && (
-        <motion.div variants={itemVariants} className="space-y-6">
+      {view === 'analytics' && canViewAnalytics && (
+        <motion.div variants={itemVariants}>
+          <NotificationAnalyticsPanel analytics={analytics} analyticsError={analyticsError} />
+        </motion.div>
+      )}
+
+      {view === 'preferences' && (
+        <motion.div variants={itemVariants}>
           <LiquidGlassCard className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
@@ -179,57 +314,57 @@ export default function NotificationsPage() {
             </div>
 
             <div className="space-y-8">
-              {/* Alert Types */}
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Alert Types</h3>
-                
-                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <CalendarClock className="w-5 h-5 text-emerald-400" />
-                    <div>
-                      <p className="font-bold text-white">Booking Alerts</p>
-                      <p className="text-xs text-slate-400">Updates on your booking requests & approvals</p>
+                {[
+                  {
+                    key: 'bookingAlerts' as const,
+                    title: 'Booking Alerts',
+                    description: 'Updates on your booking requests and approvals',
+                    icon: CalendarClock,
+                    activeClass: 'bg-emerald-500',
+                    textClass: 'text-emerald-400',
+                  },
+                  {
+                    key: 'ticketUpdates' as const,
+                    title: 'Ticket Updates',
+                    description: 'Status changes and resolutions for support tickets',
+                    icon: Ticket,
+                    activeClass: 'bg-blue-500',
+                    textClass: 'text-blue-400',
+                  },
+                  {
+                    key: 'comments' as const,
+                    title: 'Comments',
+                    description: 'When someone comments on your bookings or tickets',
+                    icon: MessageSquare,
+                    activeClass: 'bg-amber-500',
+                    textClass: 'text-amber-400',
+                  },
+                ].map((option) => (
+                  <label key={option.key} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <option.icon className={`w-5 h-5 ${option.textClass}`} />
+                      <div>
+                        <p className="font-bold text-white">{option.title}</p>
+                        <p className="text-xs text-slate-400">{option.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.bookingAlerts ? 'bg-emerald-500' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.bookingAlerts ? 'translate-x-5' : ''}`} />
-                  </div>
-                  <input type="checkbox" className="hidden" checked={prefs.bookingAlerts} onChange={(e) => setPrefs({...prefs, bookingAlerts: e.target.checked})} />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <Ticket className="w-5 h-5 text-blue-400" />
-                    <div>
-                      <p className="font-bold text-white">Ticket Updates</p>
-                      <p className="text-xs text-slate-400">Status changes and resolutions for support tickets</p>
+                    <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs[option.key] ? option.activeClass : 'bg-white/20'}`}>
+                      <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs[option.key] ? 'translate-x-5' : ''}`} />
                     </div>
-                  </div>
-                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.ticketUpdates ? 'bg-blue-500' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.ticketUpdates ? 'translate-x-5' : ''}`} />
-                  </div>
-                  <input type="checkbox" className="hidden" checked={prefs.ticketUpdates} onChange={(e) => setPrefs({...prefs, ticketUpdates: e.target.checked})} />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <MessageSquare className="w-5 h-5 text-amber-400" />
-                    <div>
-                      <p className="font-bold text-white">Comments</p>
-                      <p className="text-xs text-slate-400">When someone comments on your bookings/tickets</p>
-                    </div>
-                  </div>
-                  <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.comments ? 'bg-amber-500' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.comments ? 'translate-x-5' : ''}`} />
-                  </div>
-                  <input type="checkbox" className="hidden" checked={prefs.comments} onChange={(e) => setPrefs({...prefs, comments: e.target.checked})} />
-                </label>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={prefs[option.key]}
+                      onChange={(event) => setPrefs({ ...prefs, [option.key]: event.target.checked })}
+                    />
+                  </label>
+                ))}
               </div>
 
-              {/* Do Not Disturb Mode */}
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Do Not Disturb</h3>
-                
                 <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                   <label className="flex items-center justify-between cursor-pointer mb-4">
                     <div className="flex items-center gap-4">
@@ -242,7 +377,12 @@ export default function NotificationsPage() {
                     <div className={`w-10 h-5 rounded-full p-1 transition-colors flex-shrink-0 ${prefs.dndMode ? 'bg-violet-500' : 'bg-white/20'}`}>
                       <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.dndMode ? 'translate-x-5' : ''}`} />
                     </div>
-                    <input type="checkbox" className="hidden" checked={prefs.dndMode} onChange={(e) => setPrefs({...prefs, dndMode: e.target.checked})} />
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={prefs.dndMode}
+                      onChange={(event) => setPrefs({ ...prefs, dndMode: event.target.checked })}
+                    />
                   </label>
 
                   <AnimatePresence>
@@ -255,20 +395,20 @@ export default function NotificationsPage() {
                       >
                         <div className="flex-1">
                           <label className="text-xs font-semibold text-slate-400 mb-1 block">From</label>
-                          <input 
-                            type="time" 
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500" 
-                            value={prefs.dndStart} 
-                            onChange={(e) => setPrefs({...prefs, dndStart: e.target.value})}
+                          <input
+                            type="time"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                            value={prefs.dndStart}
+                            onChange={(event) => setPrefs({ ...prefs, dndStart: event.target.value })}
                           />
                         </div>
                         <div className="flex-1">
                           <label className="text-xs font-semibold text-slate-400 mb-1 block">To</label>
-                          <input 
-                            type="time" 
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500" 
-                            value={prefs.dndEnd} 
-                            onChange={(e) => setPrefs({...prefs, dndEnd: e.target.value})}
+                          <input
+                            type="time"
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                            value={prefs.dndEnd}
+                            onChange={(event) => setPrefs({ ...prefs, dndEnd: event.target.value })}
                           />
                         </div>
                       </motion.div>
@@ -277,129 +417,129 @@ export default function NotificationsPage() {
                 </div>
               </div>
 
-              {/* Delivery Channels */}
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Delivery Channels</h3>
-                <div className="flex gap-4">
-                  <label className="flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-                     <Mail className={`w-6 h-6 ${prefs.emailNotes ? 'text-violet-400' : 'text-slate-500'}`} />
-                     <p className={`font-bold text-sm ${prefs.emailNotes ? 'text-violet-300' : 'text-slate-400'}`}>Email</p>
-                     <input type="checkbox" className="hidden" checked={prefs.emailNotes} onChange={(e) => setPrefs({...prefs, emailNotes: e.target.checked})} />
-                     <div className={`w-10 h-5 rounded-full p-1 transition-colors ${prefs.emailNotes ? 'bg-violet-500' : 'bg-white/20'}`}>
-                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.emailNotes ? 'translate-x-5' : ''}`} />
-                     </div>
-                  </label>
-                </div>
+                <label className="flex max-w-xs flex-col items-center justify-center gap-2 p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                  <Mail className={`w-6 h-6 ${prefs.emailNotes ? 'text-violet-400' : 'text-slate-500'}`} />
+                  <p className={`font-bold text-sm ${prefs.emailNotes ? 'text-violet-300' : 'text-slate-400'}`}>Email</p>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={prefs.emailNotes}
+                    onChange={(event) => setPrefs({ ...prefs, emailNotes: event.target.checked })}
+                  />
+                  <div className={`w-10 h-5 rounded-full p-1 transition-colors ${prefs.emailNotes ? 'bg-violet-500' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 bg-white rounded-full transition-transform ${prefs.emailNotes ? 'translate-x-5' : ''}`} />
+                  </div>
+                </label>
               </div>
 
               <div className="pt-4 flex justify-end">
-                <NeuButton variant="primary" size="lg" icon={<Save className="w-5 h-5"/>} iconPosition="left" onClick={handleSavePreferences}>
+                <NeuButton
+                  variant="primary"
+                  size="lg"
+                  icon={<Save className="w-5 h-5" />}
+                  iconPosition="left"
+                  onClick={handleSavePreferences}
+                >
                   Save Preferences
                 </NeuButton>
               </div>
-
             </div>
           </LiquidGlassCard>
         </motion.div>
       )}
 
-      {/* Notification List */}
-      {filter !== 'preferences' && (
-      <AnimatePresence mode="popLayout">
-        {filtered.map((notification, index) => {
-          const Icon = typeIcons[notification.type] || Bell;
-          const cfg = typeColors[notification.type] || typeColors.SYSTEM;
-          return (
-            <motion.div
-              key={notification.id}
-              custom={index}
-              variants={fadeScaleVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              layout
-            >
-              <LiquidGlassCard
-                depth={notification.read ? 1 : 2}
-                glow={notification.read ? undefined : cfg.glow}
-                className="overflow-hidden"
+      {view !== 'preferences' && view !== 'analytics' && (
+        <AnimatePresence mode="popLayout">
+          {filteredNotifications.map((notification, index) => {
+            const Icon = typeIcons[notification.type] || Bell;
+            const cfg = typeColors[notification.type] || typeColors.SYSTEM;
+            return (
+              <motion.div
+                key={notification.id}
+                custom={index}
+                variants={fadeScaleVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                layout
               >
-                {/* Unread indicator bar */}
-                {!notification.read && (
-                  <div
-                    className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-                    style={{ background: `linear-gradient(to bottom, ${cfg.glow.replace('0.3', '0.8')}, ${cfg.glow.replace('0.3', '0.4')})` }}
-                  />
-                )}
+                <LiquidGlassCard
+                  depth={notification.read ? 1 : 2}
+                  glow={notification.read ? undefined : cfg.glow}
+                  className="overflow-hidden"
+                >
+                  {!notification.read && (
+                    <div
+                      className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+                      style={{ background: `linear-gradient(to bottom, ${cfg.glow.replace('0.3', '0.8')}, ${cfg.glow.replace('0.3', '0.4')})` }}
+                    />
+                  )}
 
-                <div className="flex items-start gap-4">
-                  {/* Icon */}
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: cfg.glassColor,
-                      border: `1px solid ${cfg.glow}`,
-                      boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
-                    }}
-                  >
-                    <Icon className={`w-5 h-5 ${cfg.textColor}`} />
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <h3 className={`text-sm font-bold ${notification.read ? 'text-slate-300' : 'text-white'}`}>
-                        {notification.title}
-                      </h3>
-                      {!notification.read && (
-                        <span
-                          className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-glow"
-                          style={{ background: cfg.glow.replace('0.3', '0.9') }}
-                        />
-                      )}
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{
+                        background: cfg.glassColor,
+                        border: `1px solid ${cfg.glow}`,
+                        boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
+                      }}
+                    >
+                      <Icon className={`w-5 h-5 ${cfg.textColor}`} />
                     </div>
-                    <p className="text-sm text-slate-400 leading-relaxed">{notification.message}</p>
-                    <p className="text-xs text-slate-600 mt-1.5 font-medium">
-                      {new Date(notification.createdAt).toLocaleString()}
-                    </p>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {!notification.read && (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h3 className={`text-sm font-bold ${notification.read ? 'text-slate-300' : 'text-white'}`}>
+                          {notification.title}
+                        </h3>
+                        {!notification.read && (
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-glow"
+                            style={{ background: cfg.glow.replace('0.3', '0.9') }}
+                          />
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-400 leading-relaxed">{notification.message}</p>
+                      <p className="text-xs text-slate-600 mt-1.5 font-medium">{new Date(notification.createdAt).toLocaleString()}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {!notification.read && (
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => handleMarkAsRead(notification.id)}
+                          className="p-2 rounded-xl text-slate-500 hover:text-emerald-400 transition-colors"
+                          style={{ background: 'rgba(255,255,255,0.04)' }}
+                          title="Mark as read"
+                          aria-label="Mark as read"
+                        >
+                          <Check className="w-4 h-4" />
+                        </motion.button>
+                      )}
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => handleMarkAsRead(notification.id)}
-                        className="p-2 rounded-xl text-slate-500 hover:text-emerald-400 transition-colors"
+                        onClick={() => handleDelete(notification.id)}
+                        className="p-2 rounded-xl text-slate-500 hover:text-rose-400 transition-colors"
                         style={{ background: 'rgba(255,255,255,0.04)' }}
-                        title="Mark as read"
-                        aria-label="Mark as read"
+                        title="Delete"
+                        aria-label="Delete notification"
                       >
-                        <Check className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </motion.button>
-                    )}
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleDelete(notification.id)}
-                      className="p-2 rounded-xl text-slate-500 hover:text-rose-400 transition-colors"
-                      style={{ background: 'rgba(255,255,255,0.04)' }}
-                      title="Delete"
-                      aria-label="Delete notification"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </motion.button>
+                    </div>
                   </div>
-                </div>
-              </LiquidGlassCard>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+                </LiquidGlassCard>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       )}
 
-      {filter !== 'preferences' && filtered.length === 0 && (
+      {view !== 'preferences' && view !== 'analytics' && filteredNotifications.length === 0 && (
         <motion.div variants={itemVariants} className="text-center py-20">
           <div
             className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center animate-breathing"
@@ -408,14 +548,13 @@ export default function NotificationsPage() {
             <Bell className="w-8 h-8 text-violet-500" />
           </div>
           <p className="text-slate-300 font-bold text-lg">
-            {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+            {view === 'unread' ? 'No unread notifications' : 'No notifications yet'}
           </p>
           <p className="text-sm text-slate-600 mt-2">
-            You'll be notified about booking updates and ticket changes
+            You will be notified about booking updates and ticket changes.
           </p>
         </motion.div>
       )}
     </motion.div>
   );
 }
-

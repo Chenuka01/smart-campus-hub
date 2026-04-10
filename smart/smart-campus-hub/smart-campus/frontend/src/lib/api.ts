@@ -55,6 +55,13 @@ export const authApi = {
   updateUserRoles: (userId: string, roles: string[]) =>
     api.put(`/auth/users/${userId}/roles`, { roles }),
   deleteUser: (userId: string) => api.delete(`/auth/users/${userId}`),
+  // Password Reset APIs
+  requestPasswordReset: (email: string) =>
+    api.post('/auth/password-reset/request', { email }),
+  verifyOtp: (email: string, otp: string) =>
+    api.post('/auth/password-reset/verify-otp', { email, otp }),
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    api.post('/auth/password-reset/reset', { email, otp, newPassword }),
 };
 
 // Facilities API
@@ -118,11 +125,20 @@ export const notificationApi = {
   getAll: () => api.get('/notifications'),
   getUnread: () => api.get('/notifications/unread'),
   getCount: () => api.get('/notifications/count'),
+  getAnalytics: () => api.get('/notifications/analytics'),
   markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put('/notifications/read-all'),
   delete: (id: string) => api.delete(`/notifications/${id}`),
   getPreferences: () => api.get('/notifications/preferences'),
-  updatePreferences: (data: any) => api.put('/notifications/preferences', data),
+  updatePreferences: (data: {
+    email: boolean;
+    dndMode: boolean;
+    dndStart: string;
+    dndEnd: string;
+    bookingAlerts: boolean;
+    ticketUpdates: boolean;
+    comments: boolean;
+  }) => api.put('/notifications/preferences', data),
 };
 
 export default api;

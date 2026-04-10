@@ -203,7 +203,7 @@ export default function BookingFormPage() {
               </div>
             </div>
             {fieldErrors.time && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">âš ï¸  {fieldErrors.time}</p>
+              <p className="text-rose-400 text-xs mt-2 font-medium">⚠️ {fieldErrors.time}</p>
             )}
           </div>
 
@@ -222,7 +222,7 @@ export default function BookingFormPage() {
               onChange={e => setForm({ ...form, expectedAttendees: parseInt(e.target.value) })}
               min="1" className="glass-input w-full px-4 py-3 rounded-xl text-sm" required />
             {fieldErrors.attendees && (
-              <p className="text-rose-400 text-xs mt-2 font-medium">âš ï¸  {fieldErrors.attendees}</p>
+              <p className="text-rose-400 text-xs mt-2 font-medium">⚠️ {fieldErrors.attendees}</p>
             )}
           </div>
 

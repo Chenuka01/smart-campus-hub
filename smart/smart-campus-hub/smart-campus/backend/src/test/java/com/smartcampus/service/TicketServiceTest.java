@@ -27,6 +27,8 @@ class TicketServiceTest {
 
     @Mock private TicketRepository ticketRepository;
     @Mock private NotificationService notificationService;
+    @Mock private TicketClassificationService ticketClassificationService;
+    @Mock private TechnicianAutoAssignmentService technicianAutoAssignmentService;
 
     @InjectMocks private TicketService ticketService;
 
@@ -55,26 +57,47 @@ class TicketServiceTest {
     @Test
     @DisplayName("createTicket: new ticket has OPEN status and correct reporter")
     void createTicket_validRequest_createsOpenTicket() {
-        Ticket saved = new Ticket();
-        saved.setId("ticket-1");
-        saved.setStatus(Ticket.TicketStatus.OPEN);
-        saved.setReportedBy("user-1");
-        when(ticketRepository.save(any(Ticket.class))).thenReturn(saved);
+        when(ticketClassificationService.classify(any(), any(), any(), any(), any()))
+                .thenReturn(new TicketClassificationService.TicketClassification("EQUIPMENT", Ticket.Priority.HIGH));
+        when(technicianAutoAssignmentService.findBestTechnicianForCategory("EQUIPMENT"))
+                .thenReturn(Optional.empty());
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> {
+            Ticket ticket = invocation.getArgument(0);
+            ticket.setId("ticket-1");
+            return ticket;
+        });
 
         Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
 
         assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
         assertThat(result.getReportedBy()).isEqualTo("user-1");
+        assertThat(result.getCategory()).isEqualTo("EQUIPMENT");
+        assertThat(result.getPriority()).isEqualTo(Ticket.Priority.HIGH);
         verify(ticketRepository).save(any(Ticket.class));
     }
 
     @Test
-    @DisplayName("createTicket: throws IllegalArgumentException for unknown priority")
-    void createTicket_invalidPriority_throwsIllegalArgumentException() {
-        testRequest.setPriority("URGENT"); // not a valid enum value
+    @DisplayName("createTicket: auto-assignment moves ticket to IN_PROGRESS and notifies both parties")
+    void createTicket_autoAssignedTechnician_setsInProgressAndNotifies() {
+        User technician = new User();
+        technician.setId("tech-1");
+        technician.setName("John Technician");
+        when(ticketClassificationService.classify(any(), any(), any(), any(), any()))
+                .thenReturn(new TicketClassificationService.TicketClassification("IT Equipment", Ticket.Priority.HIGH));
+        when(technicianAutoAssignmentService.findBestTechnicianForCategory("IT Equipment"))
+                .thenReturn(Optional.of(technician));
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> {
+            Ticket ticket = invocation.getArgument(0);
+            ticket.setId("ticket-1");
+            return ticket;
+        });
 
-        assertThatThrownBy(() -> ticketService.createTicket(testRequest, testUser, Collections.emptyList()))
-                .isInstanceOf(IllegalArgumentException.class);
+        Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
+
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.IN_PROGRESS);
+        assertThat(result.getAssignedTo()).isEqualTo("tech-1");
+        assertThat(result.getAssignedToName()).isEqualTo("John Technician");
+        verify(notificationService, times(2)).createNotification(any(), any(), any(), any(), any(), any());
     }
 
     // ─── assignTicket ─────────────────────────────────────────────────────────

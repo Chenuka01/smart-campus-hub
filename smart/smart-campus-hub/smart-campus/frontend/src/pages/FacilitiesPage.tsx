@@ -6,7 +6,7 @@ import { facilityApi } from '@/lib/api';
 import type { Facility } from '@/lib/types';
 import {
   Building2, Search, Filter, Plus, MapPin, Users,
-  Monitor, Camera, Laptop, FlaskConical, Presentation, X, BarChart3
+  Monitor, Camera, Laptop, FlaskConical, Presentation, X, BarChart3, Heart
 } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
