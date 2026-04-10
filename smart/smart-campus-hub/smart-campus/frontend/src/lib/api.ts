@@ -108,6 +108,8 @@ export const ticketApi = {
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>
     api.put(`/tickets/${id}/status`, { status, resolutionNotes, rejectionReason }),
   delete: (id: string) => api.delete(`/tickets/${id}`),
+  bulkDelete: (ids: string[]) => api.delete('/tickets/bulk-delete', { data: ids }),
+  clearHistory: () => api.delete('/tickets/clear-history'),
 };
 
 // Comments API

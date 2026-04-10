@@ -64,6 +64,7 @@ export default function NotificationsPage() {
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<NotificationView>(canViewAnalytics ? 'analytics' : 'all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [prefs, setPrefs] = useState({
     bookingAlerts: true,
     ticketUpdates: true,
@@ -193,9 +194,38 @@ export default function NotificationsPage() {
     try {
       await notificationApi.delete(id);
       setNotifications((current) => current.filter((notification) => notification.id !== id));
+      setSelectedIds((current) => current.filter((sid) => sid !== id));
       void refreshAnalytics();
     } catch {
       // ignore
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} notifications?`)) return;
+    
+    try {
+      await Promise.all(selectedIds.map(id => notificationApi.delete(id)));
+      setNotifications((current) => current.filter((n) => !selectedIds.includes(n.id)));
+      setSelectedIds([]);
+      void refreshAnalytics();
+    } catch {
+      alert('Failed to delete some notifications');
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredNotifications.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredNotifications.map(n => n.id));
     }
   };
 
@@ -293,6 +323,55 @@ export default function NotificationsPage() {
           </motion.button>
         ))}
       </motion.div>
+
+      {view !== 'preferences' && view !== 'analytics' && filteredNotifications.length > 0 && (
+        <motion.div variants={itemVariants} className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={toggleSelectAll}
+              className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                selectedIds.length === filteredNotifications.length 
+                ? 'bg-violet-500 border-violet-400' 
+                : 'border-white/20 hover:border-violet-500/50'
+              }`}
+            >
+              {selectedIds.length === filteredNotifications.length && <Check className="w-4 h-4 text-white" />}
+              {selectedIds.length > 0 && selectedIds.length < filteredNotifications.length && (
+                <div className="w-2.5 h-0.5 bg-violet-400 rounded-full" />
+              )}
+            </motion.button>
+            <span className="text-sm font-bold text-slate-300">
+              {selectedIds.length > 0 
+                ? `${selectedIds.length} selected` 
+                : 'Select All'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <AnimatePresence>
+              {selectedIds.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="flex items-center gap-2"
+                >
+                  <NeuButton
+                    variant="ghost"
+                    size="sm"
+                    icon={<Trash2 className="w-4 h-4" />}
+                    onClick={handleBulkDelete}
+                    className="text-rose-400 border-rose-500/20 hover:bg-rose-500/10"
+                  >
+                    Delete Selected
+                  </NeuButton>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      )}
 
       {view === 'analytics' && canViewAnalytics && (
         <motion.div variants={itemVariants}>
@@ -468,25 +547,35 @@ export default function NotificationsPage() {
                 <LiquidGlassCard
                   depth={notification.read ? 1 : 2}
                   glow={notification.read ? undefined : cfg.glow}
-                  className="overflow-hidden"
+                  className={`overflow-hidden transition-all duration-300 ${
+                    selectedIds.includes(notification.id) 
+                      ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20' 
+                      : ''
+                  }`}
                 >
-                  {!notification.read && (
-                    <div
-                      className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-                      style={{ background: `linear-gradient(to bottom, ${cfg.glow.replace('0.3', '0.8')}, ${cfg.glow.replace('0.3', '0.4')})` }}
-                    />
-                  )}
-
                   <div className="flex items-start gap-4">
-                    <div
-                      className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{
-                        background: cfg.glassColor,
-                        border: `1px solid ${cfg.glow}`,
-                        boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
-                      }}
-                    >
-                      <Icon className={`w-5 h-5 ${cfg.textColor}`} />
+                    <div className="flex flex-col items-center gap-3">
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => toggleSelect(notification.id)}
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          selectedIds.includes(notification.id) 
+                            ? 'bg-violet-500 border-violet-400' 
+                            : 'border-white/10 hover:border-violet-500/30'
+                        }`}
+                      >
+                        {selectedIds.includes(notification.id) && <Check className="w-4 h-4 text-white" />}
+                      </motion.button>
+                      <div
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: cfg.glassColor,
+                          border: `1px solid ${cfg.glow}`,
+                          boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
+                        }}
+                      >
+                        <Icon className={`w-5 h-5 ${cfg.textColor}`} />
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0">

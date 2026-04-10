@@ -137,7 +137,7 @@ class TicketServiceTest {
         when(ticketRepository.findById("ticket-1")).thenReturn(Optional.of(ticket));
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Ticket result = ticketService.updateTicketStatus("ticket-1", "RESOLVED", "Replaced lamp unit", null);
+        Ticket result = ticketService.updateTicketStatus("ticket-1", "RESOLVED", "Replaced lamp unit", null, testUser);
 
         assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.RESOLVED);
         assertThat(result.getResolutionNotes()).isEqualTo("Replaced lamp unit");
@@ -156,7 +156,7 @@ class TicketServiceTest {
         when(ticketRepository.findById("ticket-1")).thenReturn(Optional.of(ticket));
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Ticket result = ticketService.updateTicketStatus("ticket-1", "REJECTED", null, "Duplicate ticket");
+        Ticket result = ticketService.updateTicketStatus("ticket-1", "REJECTED", null, "Duplicate ticket", testUser);
 
         assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.REJECTED);
         assertThat(result.getRejectionReason()).isEqualTo("Duplicate ticket");
@@ -167,7 +167,7 @@ class TicketServiceTest {
     void updateTicketStatus_unknownTicket_throwsResourceNotFoundException() {
         when(ticketRepository.findById("unknown")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> ticketService.updateTicketStatus("unknown", "RESOLVED", null, null))
+        assertThatThrownBy(() -> ticketService.updateTicketStatus("unknown", "RESOLVED", null, null, testUser))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 

@@ -97,7 +97,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {
@@ -109,11 +109,13 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICIAN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Ticket> updateTicketStatus(
             @PathVariable String id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ticketService.updateTicketStatus(
                 id, request.get("status"),
                 request.get("resolutionNotes"),
-                request.get("rejectionReason")));
+                request.get("rejectionReason"),
+                user));
     }
 
     @DeleteMapping("/{id}")
@@ -122,5 +124,20 @@ public class TicketController {
             @AuthenticationPrincipal User user) {
         ticketService.deleteTicketByUser(id, user);
         return ResponseEntity.ok(ApiResponse.success("Ticket deleted successfully"));
+    }
+
+    @DeleteMapping("/bulk-delete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> bulkDeleteTickets(
+            @RequestBody List<String> ids) {
+        ticketService.bulkDeleteTickets(ids);
+        return ResponseEntity.ok(ApiResponse.success("Tickets deleted successfully"));
+    }
+
+    @DeleteMapping("/clear-history")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse> clearTicketHistory() {
+        ticketService.clearAllClosedResolvedTickets();
+        return ResponseEntity.ok(ApiResponse.success("Ticket history cleared successfully"));
     }
 }

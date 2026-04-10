@@ -102,9 +102,9 @@ public class NotificationService {
                         mailSender.send(mailMessage);
                         System.out.println("[SUCCESS] Email sent successfully! To: " + targetEmail);
                     } catch (Exception e) {
-                        System.err.println("[ERROR] Failed to send email: " + e.getMessage());
-                        e.printStackTrace();
-                        throw new RuntimeException("Email failed: " + e.getMessage());
+                        System.err.println("[ERROR] Failed to send email to " + targetEmail + ": " + e.getMessage());
+                        // e.printStackTrace();
+                        // throw new RuntimeException("Email failed: " + e.getMessage());
                     }
                 }
             } else {

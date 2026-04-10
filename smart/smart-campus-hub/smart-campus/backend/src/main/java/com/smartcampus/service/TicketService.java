@@ -51,10 +51,19 @@ public class TicketService {
         ticket.setCreatedAt(now);
         ticket.setUpdatedAt(now);
         applySlaPolicy(ticket, now);
-        User autoAssignedTechnician = autoAssignTechnician(ticket);
+
+        User assignedTechnician = null;
+        if (request.getAssignedTo() != null && !request.getAssignedTo().isEmpty()) {
+            ticket.setAssignedTo(request.getAssignedTo());
+            ticket.setAssignedToName(request.getAssignedToName());
+        } else {
+            assignedTechnician = autoAssignTechnician(ticket);
+        }
 
         Ticket savedTicket = ticketRepository.save(ticket);
-        sendAutoAssignmentNotifications(savedTicket, autoAssignedTechnician);
+        if (assignedTechnician != null || ticket.getAssignedTo() != null) {
+            sendAutoAssignmentNotifications(savedTicket, assignedTechnician);
+        }
         return applySlaState(savedTicket);
     }
 
@@ -62,7 +71,7 @@ public class TicketService {
         Ticket ticket = getTicketById(ticketId);
         ticket.setAssignedTo(technicianId);
         ticket.setAssignedToName(technicianName);
-        ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+        // Do not change status to IN_PROGRESS automatically; keep it OPEN until technician starts work
         ticket.setUpdatedAt(LocalDateTime.now());
         applySlaState(ticket);
         Ticket saved = ticketRepository.save(ticket);
@@ -84,9 +93,38 @@ public class TicketService {
         return saved;
     }
 
-    public Ticket updateTicketStatus(String ticketId, String status, String resolutionNotes, String rejectionReason) {
+    public Ticket updateTicketStatus(String ticketId, String status, String resolutionNotes, String rejectionReason, User user) {
         Ticket ticket = getTicketById(ticketId);
         Ticket.TicketStatus newStatus = Ticket.TicketStatus.valueOf(status);
+        Ticket.TicketStatus oldStatus = ticket.getStatus();
+
+        // 1. Same status is always allowed (no-op)
+        if (newStatus == oldStatus) {
+            return ticket;
+        }
+
+        // 2. Allow transitions from REJECTED back to OPEN if Admin wants to re-process (Optional but helpful)
+        if (newStatus == Ticket.TicketStatus.OPEN && oldStatus == Ticket.TicketStatus.REJECTED) {
+            ticket.setRejectionReason(null);
+        }
+
+        // 3. Main Workflow Validation: OPEN -> IN_PROGRESS -> RESOLVED -> CLOSED
+        if (newStatus == Ticket.TicketStatus.IN_PROGRESS && (oldStatus != Ticket.TicketStatus.OPEN)) {
+            throw new RuntimeException("Can only move to IN_PROGRESS from OPEN (currently: " + oldStatus + ")");
+        }
+        if (newStatus == Ticket.TicketStatus.RESOLVED && oldStatus != Ticket.TicketStatus.IN_PROGRESS) {
+            throw new RuntimeException("Can only move to RESOLVED from IN_PROGRESS (currently: " + oldStatus + ")");
+        }
+        if (newStatus == Ticket.TicketStatus.CLOSED && (oldStatus != Ticket.TicketStatus.RESOLVED && oldStatus != Ticket.TicketStatus.OPEN && oldStatus != Ticket.TicketStatus.IN_PROGRESS && oldStatus != Ticket.TicketStatus.REJECTED)) {
+            // Allow Admin to close from any state, but user usually resolves first
+            throw new RuntimeException("Invalid closing state (currently: " + oldStatus + ")");
+        }
+
+        // 4. Rejected or Cancelled: ONLY allowed for ADMIN or SUPER_ADMIN
+        boolean isPrivileged = user.getRoles().stream().anyMatch(r -> r == User.Role.ADMIN || r == User.Role.SUPER_ADMIN);
+        if (newStatus == Ticket.TicketStatus.REJECTED && !isPrivileged) {
+            throw new RuntimeException("Only Administrators can reject tickets.");
+        }
 
         ticket.setStatus(newStatus);
         ticket.setUpdatedAt(LocalDateTime.now());
@@ -98,6 +136,9 @@ public class TicketService {
             ticket.setClosedAt(LocalDateTime.now());
         } else if (newStatus == Ticket.TicketStatus.REJECTED) {
             ticket.setRejectionReason(rejectionReason);
+        } else if (newStatus == Ticket.TicketStatus.IN_PROGRESS) {
+            // Clear any previous rejection reason if moved back to progress
+            ticket.setRejectionReason(null);
         }
 
         applySlaState(ticket);
@@ -239,6 +280,17 @@ public class TicketService {
         }
     }
 
+    public void bulkDeleteTickets(List<String> ids) {
+        ticketRepository.deleteAllById(ids);
+    }
+
+    public void clearAllClosedResolvedTickets() {
+        List<Ticket> toDelete = ticketRepository.findAll().stream()
+                .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED || t.getStatus() == Ticket.TicketStatus.RESOLVED)
+                .toList();
+        ticketRepository.deleteAll(toDelete);
+    }
+
     private void applySlaPolicy(Ticket ticket, LocalDateTime baseTime) {
         int slaTargetMinutes = getSlaTargetMinutes(ticket.getPriority());
         ticket.setSlaTargetMinutes(slaTargetMinutes);
@@ -251,7 +303,11 @@ public class TicketService {
                 .map(technician -> {
                     ticket.setAssignedTo(technician.getId());
                     ticket.setAssignedToName(technician.getName());
-                    ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+                    // Keep status as OPEN until work actually starts or manual acceptance, 
+                    // or let it be auto-assigned but still OPEN if that's the preferred dashboard logic.
+                    // However, 'Open Tickets' in dashboard specifically counts status == 'OPEN'. 
+                    // If we want auto-assigned tickets to show up in 'Open Tickets', we stay in OPEN.
+                    ticket.setStatus(Ticket.TicketStatus.OPEN); 
                     return technician;
                 })
                 .orElse(null);
