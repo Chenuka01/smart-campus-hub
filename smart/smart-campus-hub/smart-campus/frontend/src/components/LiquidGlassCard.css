@@ -39,6 +39,7 @@
 .liquid-glass-card::before {
   content: '';
   position: absolute;
+  pointer-events: none;
   top: 0; left: 10%; right: 10%;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
@@ -48,6 +49,7 @@
 /* Animated shimmer border */
 .liquid-glass-shimmer {
   position: absolute;
+  pointer-events: none;
   inset: 0;
   z-index: 0;
   pointer-events: none;
