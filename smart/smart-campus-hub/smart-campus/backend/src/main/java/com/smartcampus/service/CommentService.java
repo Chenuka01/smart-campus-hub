@@ -41,24 +41,27 @@ public class CommentService {
 
         Comment saved = commentRepository.save(comment);
 
+        // Fetch ticket again to ensure we have the latest reporter/assigned info
+        Ticket currentTicket = ticketService.getTicketById(ticketId, user);
+
         // Notify ticket reporter if comment is from someone else
-        if (!ticket.getReportedBy().equals(user.getId())) {
+        if (currentTicket.getReportedBy() != null && !currentTicket.getReportedBy().equals(user.getId())) {
             notificationService.createNotification(
-                    ticket.getReportedBy(),
+                    currentTicket.getReportedBy(),
                     "New Comment",
-                    user.getName() + " commented on your ticket: " + ticket.getTitle(),
+                    user.getName() + " commented on your ticket: " + currentTicket.getTitle(),
                     Notification.NotificationType.COMMENT_ADDED,
-                    ticket.getId(), "TICKET");
+                    currentTicket.getId(), "TICKET");
         }
 
         // Notify assigned technician if comment is from someone else
-        if (ticket.getAssignedTo() != null && !ticket.getAssignedTo().equals(user.getId())) {
+        if (currentTicket.getAssignedTo() != null && !currentTicket.getAssignedTo().equals(user.getId())) {
             notificationService.createNotification(
-                    ticket.getAssignedTo(),
+                    currentTicket.getAssignedTo(),
                     "New Comment",
-                    user.getName() + " commented on ticket: " + ticket.getTitle(),
+                    user.getName() + " commented on ticket: " + currentTicket.getTitle(),
                     Notification.NotificationType.COMMENT_ADDED,
-                    ticket.getId(), "TICKET");
+                    currentTicket.getId(), "TICKET");
         }
 
         return saved;
