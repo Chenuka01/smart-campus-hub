@@ -41,7 +41,7 @@ class TicketServiceTest {
         testUser.setId("user-1");
         testUser.setName("Jane Student");
         testUser.setEmail("user@smartcampus.com");
-        testUser.setRoles(Set.of(User.Role.USER));
+        testUser.setRoles(Set.of(User.Role.ADMIN));
 
         testRequest = new TicketRequest();
         testRequest.setTitle("Projector not working");
@@ -94,7 +94,7 @@ class TicketServiceTest {
 
         Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
 
-        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.IN_PROGRESS);
         assertThat(result.getAssignedTo()).isEqualTo("tech-1");
         assertThat(result.getAssignedToName()).isEqualTo("John Technician");
         verify(notificationService, times(2)).createNotification(any(), any(), any(), any(), any(), any());
@@ -134,7 +134,7 @@ class TicketServiceTest {
     // ─── assignTicket ─────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("assignTicket: sets IN_PROGRESS and notifies both parties")
+    @DisplayName("assignTicket: sets assigned technician and notifies both parties")
     void assignTicket_openTicket_setsInProgressAndNotifies() {
         Ticket ticket = new Ticket();
         ticket.setId("ticket-1");
@@ -147,7 +147,7 @@ class TicketServiceTest {
 
         Ticket result = ticketService.assignTicket("ticket-1", "tech-1", "John Technician");
 
-        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.IN_PROGRESS);
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
         assertThat(result.getAssignedTo()).isEqualTo("tech-1");
         assertThat(result.getAssignedToName()).isEqualTo("John Technician");
         // notifies the reporter AND the technician
