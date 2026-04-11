@@ -194,42 +194,4 @@ public class BookingService {
     public List<Booking> getBookingsByFacility(String facilityId) {
         return bookingRepository.findByFacilityId(facilityId);
     }
-
-    public Booking updateBooking(String id, BookingRequest request, User user) {
-        Booking booking = getBookingById(id);
-
-        if (!booking.getUserId().equals(user.getId())) {
-            throw new BadRequestException("You can only update your own bookings");
-        }
-
-        if (booking.getStatus() != Booking.BookingStatus.PENDING) {
-            throw new BadRequestException("Only pending bookings can be updated");
-        }
-
-        Facility facility = facilityService.getFacilityById(request.getFacilityId());
-        
-        if (request.getStartTime().isAfter(request.getEndTime()) || request.getStartTime().equals(request.getEndTime())) {
-            throw new BadRequestException("Start time must be before end time");
-        }
-
-        List<Booking> conflicts = bookingRepository.findConflictingBookings(
-                request.getFacilityId(), request.getDate(),
-                request.getStartTime(), request.getEndTime());
-
-        // Check for conflicts with OTHER bookings
-        if (conflicts.stream().anyMatch(b -> !b.getId().equals(id))) {
-            throw new ConflictException("New time slot conflicts with existing booking(s)");
-        }
-
-        booking.setFacilityId(request.getFacilityId());
-        booking.setFacilityName(facility.getName());
-        booking.setDate(request.getDate());
-        booking.setStartTime(request.getStartTime());
-        booking.setEndTime(request.getEndTime());
-        booking.setPurpose(request.getPurpose());
-        booking.setExpectedAttendees(request.getExpectedAttendees());
-        booking.setUpdatedAt(LocalDateTime.now());
-
-        return bookingRepository.save(booking);
-    }
 }

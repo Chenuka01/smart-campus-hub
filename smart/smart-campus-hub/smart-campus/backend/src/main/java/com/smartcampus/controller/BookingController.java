@@ -88,16 +88,5 @@ public class BookingController {
             @AuthenticationPrincipal User user) {
         String reason = request != null ? request.get("reason") : null;
         return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
-<<<<<<< Updated upstream
-=======
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Booking> updateBooking(
-            @PathVariable String id,
-            @Valid @RequestBody BookingRequest request,
-            @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(bookingService.updateBooking(id, request, user));
->>>>>>> Stashed changes
     }
 }
