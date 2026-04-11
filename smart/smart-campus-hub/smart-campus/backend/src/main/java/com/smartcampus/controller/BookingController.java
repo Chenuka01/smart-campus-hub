@@ -70,7 +70,7 @@ public class BookingController {
             @PathVariable String id,
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(bookingService.rejectBooking(id, user.getId(), request.get("reason")));
+        return ResponseEntity.ok(bookingService.rejectBooking(id, user.getId(), request.get("reason"))); 
     }
 
     @PutMapping("/{id}/cancel")
@@ -79,6 +79,6 @@ public class BookingController {
             @RequestBody(required = false) Map<String, String> request,
             @AuthenticationPrincipal User user) {
         String reason = request != null ? request.get("reason") : null;
-        return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
+        return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason)); //cancel booking
     }
 }

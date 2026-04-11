@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Data
-public class BookingRequest {
+public class BookingRequest { //booking request
     @NotBlank(message = "Facility ID is required")
     private String facilityId;
 
