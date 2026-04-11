@@ -14,6 +14,8 @@ export default function BookingFormPage() {
   const location = useLocation();
   const isRebooking = location.state?.isRebooking;
   const rebookData = location.state?.oldBooking;
+  const isUpdating = location.state?.isUpdating;
+  const updateData = location.state?.booking;
 
   const [searchParams] = useSearchParams();
   const preselectedFacilityId = searchParams.get('facilityId');
@@ -25,12 +27,12 @@ export default function BookingFormPage() {
   const [fieldErrors, setFieldErrors] = useState<{ attendees?: string; time?: string }>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [form, setForm] = useState({
-    facilityId: preselectedFacilityId || (isRebooking ? rebookData?.facilityId : ''),
-    date: '',
-    startTime: isRebooking ? rebookData?.startTime : '',
-    endTime: isRebooking ? rebookData?.endTime : '',
-    purpose: isRebooking ? rebookData?.purpose : '',
-    expectedAttendees: isRebooking ? rebookData?.expectedAttendees : 1,
+    facilityId: preselectedFacilityId || (isRebooking ? rebookData?.facilityId : (isUpdating ? updateData?.facilityId : '')),
+    date: isUpdating ? updateData?.date : '',
+    startTime: isRebooking ? rebookData?.startTime : (isUpdating ? updateData?.startTime : ''),
+    endTime: isRebooking ? rebookData?.endTime : (isUpdating ? updateData?.endTime : ''),
+    purpose: isRebooking ? rebookData?.purpose : (isUpdating ? updateData?.purpose : ''),
+    expectedAttendees: isRebooking ? rebookData?.expectedAttendees : (isUpdating ? updateData?.expectedAttendees : 1),
     rebookedFromBookingId: isRebooking ? rebookData?.id : undefined
   });
 
@@ -96,11 +98,15 @@ export default function BookingFormPage() {
     setError('');
     setSaving(true);
     try {
-      await bookingApi.create(form);
+      if (isUpdating && updateData?.id) {
+        await bookingApi.update(updateData.id, form);
+      } else {
+        await bookingApi.create(form);
+      }
       navigate('/bookings');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      setError(error.response?.data?.message || 'Failed to create booking. There may be a scheduling conflict.');
+      setError(error.response?.data?.message || `Failed to ${isUpdating ? 'update' : 'create'} booking. There may be a scheduling conflict.`);
       setShakeKey(k => k + 1);
     } finally { setSaving(false); }
   };
@@ -124,10 +130,16 @@ export default function BookingFormPage() {
             <CalendarDays className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">{isRebooking ? 'Rebook Facility' : 'New Booking'}</h1>
-            <p className="text-sm text-slate-400 mt-0.5">{isRebooking ? 'Rebook a previous slot' : 'Reserve a facility or equipment'}</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{isUpdating ? 'Update Booking' : (isRebooking ? 'Rebook Facility' : 'New Booking')}</h1>
+            <p className="text-sm text-slate-400 mt-0.5">{isUpdating ? 'Modify your current reservation' : (isRebooking ? 'Rebook a previous slot' : 'Reserve a facility or equipment')}</p>
           </div>
         </div>
+
+        {isUpdating && (
+          <div className="mb-6 p-4 rounded-xl" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <p className="text-blue-300 font-medium">Updating resource for: {updateData?.facilityName}</p>
+          </div>
+        )}
 
         {isRebooking && (
           <div className="mb-6 p-4 rounded-xl" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>

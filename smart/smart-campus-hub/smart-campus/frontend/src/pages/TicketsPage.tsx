@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi, authApi } from '@/lib/api';
 import type { Ticket, User } from '@/lib/types';
-import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, ArrowRight, Search, Calendar, MapPin, Tag } from 'lucide-react';
+import { Ticket as TicketIcon, Plus, AlertTriangle, Activity, User as UserIcon, ArrowRight, Search, Calendar, MapPin, Tag, Trash2 } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
@@ -18,7 +18,7 @@ const priorityConfig: Record<string, { color: string; glow: string; glassColor: 
 };
 
 const statusConfig: Record<string, { color: string; glassColor: string; glow: string }> = {
-  OPEN: { color: 'text-blue-300', glassColor: 'rgba(59,130,246,0.15)', glow: 'rgba(59,130,246,0.3)' },
+  OPEN: { color: 'text-blue-300', glassColor: 'rgba(59,130,246,0.1)', glow: 'rgba(59,130,246,0.2)' },
   IN_PROGRESS: { color: 'text-amber-300', glassColor: 'rgba(245,158,11,0.15)', glow: 'rgba(245,158,11,0.3)' },
   RESOLVED: { color: 'text-emerald-300', glassColor: 'rgba(16,185,129,0.15)', glow: 'rgba(16,185,129,0.3)' },
   CLOSED: { color: 'text-slate-400', glassColor: 'rgba(148,163,184,0.1)', glow: 'rgba(148,163,184,0.2)' },
@@ -114,8 +114,14 @@ export default function TicketsPage() {
 
   const filtered = tickets.filter(t => {
     const matchesStatus = !filter || t.status === filter;
-    const isRestrictedStaff = (isManager || isTechnician) && !isAdmin && !isSuperAdmin;
-    const matchesAssignment = isRestrictedStaff ? t.assignedTo === currentUser?.id : true;
+    
+    // Staff logic: If user is ONLY a technician/manager (and NOT an admin), they only see assigned tickets.
+    // However, for the UI display, we check the actual role list from the user object.
+    const userRoleList = currentUser?.roles || [];
+    const isStrictStaff = (userRoleList.includes('TECHNICIAN') || userRoleList.includes('MANAGER')) && 
+                         !(userRoleList.includes('ADMIN') || userRoleList.includes('SUPER_ADMIN'));
+    
+    const matchesAssignment = isStrictStaff ? t.assignedTo === currentUser?.id : true;
     const matchesSearch = !searchQuery || 
       t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
       t.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -291,6 +297,26 @@ export default function TicketsPage() {
                               <UserIcon className="w-3 h-3" /> {ticket.assignedToName}
                             </span>
                           )}
+                          {(ticket.reportedBy === currentUser?.id || isAdmin || isSuperAdmin) && (
+                            <>
+                              <span>·</span>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  if (confirm('Are you sure you want to delete this ticket?')) {
+                                    try {
+                                      await ticketApi.delete(ticket.id);
+                                      setTickets(prev => prev.filter(t => t.id !== ticket.id));
+                                    } catch { alert('Failed to delete ticket'); }
+                                  }
+                                }}
+                                className="flex items-center gap-1 text-rose-400 hover:text-rose-300 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" /> Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -303,7 +329,7 @@ export default function TicketsPage() {
                       {(isAdmin || isManager || isTechnician || isSuperAdmin) && !ticket.assignedTo && ticket.status === 'OPEN' && (
                         <NeuButton size="sm" variant="ghost" onClick={() => setAssignModal(ticket.id)} fullWidth>Assign</NeuButton>
                       )}
-                      {(isAdmin || isTechnician || isManager || isSuperAdmin) && ['OPEN', 'IN_PROGRESS', 'RESOLVED'].includes(ticket.status) && (
+                      {(isAdmin || isTechnician || isManager || isSuperAdmin) && ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status) && (
                         <NeuButton size="sm" variant="ghost" onClick={() => { setStatusModal({ id: ticket.id, currentStatus: ticket.status }); setNewStatus(''); }} fullWidth>
                           Update
                         </NeuButton>

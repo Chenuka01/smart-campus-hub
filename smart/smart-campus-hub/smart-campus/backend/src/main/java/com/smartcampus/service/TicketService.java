@@ -9,6 +9,7 @@ import com.smartcampus.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -217,6 +218,10 @@ public class TicketService {
     }
 
     public Ticket updateTicket(String ticketId, TicketRequest request, User user) {
+        return updateTicket(ticketId, request, user, null);
+    }
+
+    public Ticket updateTicket(String ticketId, TicketRequest request, User user, List<String> attachmentUrls) {
         Ticket ticket = getTicketById(ticketId);
 
         // Security check: Only reporter or staff can update.
@@ -231,9 +236,11 @@ public class TicketService {
             throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
         }
 
+        String category = isBlank(request.getCategory()) ? ticket.getCategory() : request.getCategory();
+        String priority = isBlank(request.getPriority()) ? ticket.getPriority().name() : request.getPriority();
         TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
                 request.getTitle(), request.getDescription(), request.getLocation(),
-                request.getCategory(), request.getPriority());
+                category, priority);
 
         ticket.setTitle(request.getTitle());
         ticket.setCategory(classification.category());
@@ -242,11 +249,18 @@ public class TicketService {
         ticket.setLocation(request.getLocation());
         ticket.setContactEmail(request.getContactEmail());
         ticket.setContactPhone(request.getContactPhone());
+        if (attachmentUrls != null) {
+            ticket.setAttachmentUrls(new ArrayList<>(attachmentUrls));
+        }
         ticket.setUpdatedAt(LocalDateTime.now());
         applySlaPolicy(ticket, ticket.getCreatedAt() != null ? ticket.getCreatedAt() : LocalDateTime.now());
         applySlaState(ticket);
 
         return ticketRepository.save(ticket);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     public void deleteTicket(String ticketId) {
@@ -284,6 +298,10 @@ public class TicketService {
         ticketRepository.deleteAllById(ids);
     }
 
+    public int resetStaleInProgressToOpen() {
+        return ticketRepository.updateStatusByStatus(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.OPEN);
+    }
+
     public void clearAllClosedResolvedTickets() {
         List<Ticket> toDelete = ticketRepository.findAll().stream()
                 .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED || t.getStatus() == Ticket.TicketStatus.RESOLVED)
@@ -303,7 +321,7 @@ public class TicketService {
                 .map(technician -> {
                     ticket.setAssignedTo(technician.getId());
                     ticket.setAssignedToName(technician.getName());
-                    ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+                    // Keep status as OPEN; technician must manually start it
                     return technician;
                 })
                 .orElse(null);

@@ -15,6 +15,13 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (config.data instanceof FormData) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type');
+    } else {
+      delete config.headers['Content-Type'];
+    }
+  }
   return config;
 });
 
@@ -83,26 +90,28 @@ export const bookingApi = {
     api.get('/bookings', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/bookings/${id}`),
   getByFacility: (facilityId: string) => api.get(`/bookings/facility/${facilityId}`),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/bookings/${id}`, data),
   approve: (id: string) => api.put(`/bookings/${id}/approve`),
   reject: (id: string, reason: string) =>
     api.put(`/bookings/${id}/reject`, { reason }),
   cancel: (id: string, reason?: string) =>
     api.put(`/bookings/${id}/cancel`, { reason }),
+  delete: (id: string) => api.delete(`/bookings/${id}`),
+  bulkDelete: (ids: string[]) => api.delete('/bookings/bulk-delete', { data: ids }),
 };
 
 // Tickets API
 export const ticketApi = {
   create: (data: Record<string, unknown>) => api.post('/tickets/simple', data),
-  createWithFiles: (formData: FormData) =>
-    api.post('/tickets', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  createWithFiles: (formData: FormData) => api.post('/tickets', formData),
   getMy: () => api.get('/tickets/my'),
   getAssigned: () => api.get('/tickets/assigned'),
   getAll: (status?: string) =>
     api.get('/tickets', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/tickets/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.put(`/tickets/${id}`, data),
+  updateWithFiles: (id: string, formData: FormData) => api.put(`/tickets/${id}/with-files`, formData),
+  updateWithFilesLegacy: (id: string, formData: FormData) => api.put(`/tickets/${id}`, formData),
   assign: (id: string, technicianId: string, technicianName: string) =>
     api.put(`/tickets/${id}/assign`, { technicianId, technicianName }),
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>
@@ -144,5 +153,3 @@ export const notificationApi = {
 };
 
 export default api;
-
-

@@ -1,5 +1,6 @@
 package com.smartcampus.controller;
 
+import com.smartcampus.dto.ApiResponse;
 import com.smartcampus.dto.BookingRequest;
 import com.smartcampus.model.Booking;
 import com.smartcampus.model.User;
@@ -56,6 +57,14 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getBookingsByFacility(facilityId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Booking> updateBooking(
+            @PathVariable String id,
+            @Valid @RequestBody BookingRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(bookingService.updateBooking(id, request, user));
+    }
+
     @PutMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Booking> approveBooking(
@@ -80,5 +89,19 @@ public class BookingController {
             @AuthenticationPrincipal User user) {
         String reason = request != null ? request.get("reason") : null;
         return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason)); //cancel booking
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> deleteBooking(@PathVariable String id) {
+        bookingService.deleteBooking(id);
+        return ResponseEntity.ok(ApiResponse.success("Booking deleted successfully"));
+    }
+
+    @DeleteMapping("/bulk-delete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> bulkDeleteBookings(@RequestBody List<String> ids) {
+        bookingService.bulkDeleteBookings(ids);
+        return ResponseEntity.ok(ApiResponse.success("Bookings deleted successfully"));
     }
 }
