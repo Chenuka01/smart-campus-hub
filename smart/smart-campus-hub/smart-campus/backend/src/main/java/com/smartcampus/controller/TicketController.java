@@ -33,7 +33,7 @@ public class TicketController {
         this.fileStorageService = fileStorageService;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping
     public ResponseEntity<Ticket> createTicket(
             @Valid @RequestPart("ticket") TicketRequest request,
             @RequestPart(value = "files", required = false) List<MultipartFile> files,
@@ -89,7 +89,7 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketById(id, user));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Ticket> updateTicket(
             @PathVariable String id,
             @Valid @RequestBody TicketRequest request,
@@ -97,7 +97,11 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
     }
 
-    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequestMapping(
+            value = "/{id}/with-files",
+            method = {RequestMethod.PUT, RequestMethod.POST},
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     public ResponseEntity<Ticket> updateTicketWithFiles(
             @PathVariable String id,
             @Valid @RequestPart("ticket") TicketRequest request,

@@ -1,6 +1,9 @@
 package com.smartcampus.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -8,21 +11,27 @@ import java.util.List;
 @Data
 public class TicketRequest {
     @NotBlank(message = "Title is required")
+    @Size(min = 5, max = 120, message = "Title must be between 5 and 120 characters")
     private String title;
 
     private String facilityId;
 
     @NotBlank(message = "Location is required")
+    @Size(max = 120, message = "Location cannot exceed 120 characters")
     private String location;
 
     private String category;
 
     @NotBlank(message = "Description is required")
+    @Size(min = 20, max = 2000, message = "Description must be between 20 and 2000 characters")
     private String description;
 
     private String priority;
 
+    @Email(message = "Invalid email format")
     private String contactEmail;
+
+    @Pattern(regexp = "^$|^[0-9]{10}$", message = "Phone number must be exactly 10 digits")
     private String contactPhone;
 
     private String assignedTo;

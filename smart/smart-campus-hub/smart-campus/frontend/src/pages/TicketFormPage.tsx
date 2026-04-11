@@ -19,6 +19,47 @@ const priorityColors: Record<string, { bg: string; border: string; text: string 
   CRITICAL: { bg: 'rgba(244,63,94,0.12)', border: 'rgba(244,63,94,0.3)', text: 'text-rose-400' },
 };
 
+const normalizePhoneNumber = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_SIZE_LABEL = '10MB';
+const MAX_ANNOTATED_IMAGE_DIMENSION = 1600;
+const ANNOTATED_IMAGE_TYPE = 'image/jpeg';
+
+const getAnnotatedFileName = (name: string) => {
+  const baseName = name.replace(/\.[^.]+$/, '') || 'annotated-evidence';
+  return `${baseName}-annotated.jpg`;
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+  new Promise<Blob | null>(resolve => canvas.toBlob(resolve, type, quality));
+
+const exportAnnotatedImage = async (image: HTMLImageElement, annotationCanvas: HTMLCanvasElement) => {
+  const originalWidth = image.naturalWidth || image.width;
+  const originalHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, MAX_ANNOTATED_IMAGE_DIMENSION / Math.max(originalWidth, originalHeight));
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = Math.max(1, Math.round(originalWidth * scale));
+  exportCanvas.height = Math.max(1, Math.round(originalHeight * scale));
+  const exportContext = exportCanvas.getContext('2d');
+  if (!exportContext) {
+    return null;
+  }
+
+  exportContext.fillStyle = '#ffffff';
+  exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+  exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+  exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+  for (const quality of [0.86, 0.76, 0.66, 0.56, 0.46]) {
+    const blob = await canvasToBlob(exportCanvas, ANNOTATED_IMAGE_TYPE, quality);
+    if (blob && blob.size <= MAX_IMAGE_SIZE_BYTES) {
+      return blob;
+    }
+  }
+
+  return canvasToBlob(exportCanvas, ANNOTATED_IMAGE_TYPE, 0.36);
+};
+
 export default function TicketFormPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,8 +162,8 @@ export default function TicketFormPage() {
       errors.contactEmail = 'Invalid email format';
     }
 
-    if (form.contactPhone && !/^\+?[0-9\s-]{10,}$/.test(form.contactPhone)) {
-      errors.contactPhone = 'Invalid phone number';
+    if (form.contactPhone && !/^[0-9]{10}$/.test(form.contactPhone)) {
+      errors.contactPhone = 'Phone number must be exactly 10 digits';
     }
 
     setFieldErrors(errors);
@@ -131,6 +172,14 @@ export default function TicketFormPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    const oversizedFile = files.find(file => file.size > MAX_IMAGE_SIZE_BYTES);
+    if (oversizedFile) {
+      setError(`${oversizedFile.name} is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
+      setShakeKey(k => k + 1);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const remaining = 3 - attachments.length;
     const toAdd = files.slice(0, remaining);
     setAttachments(prev => [...prev, ...toAdd]);
@@ -259,25 +308,20 @@ export default function TicketFormPage() {
       return;
     }
 
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = image.naturalWidth;
-    exportCanvas.height = image.naturalHeight;
-    const exportContext = exportCanvas.getContext('2d');
-    if (!exportContext) {
-      return;
-    }
-
-    exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
-    exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
-
-    exportCanvas.toBlob(blob => {
+    exportAnnotatedImage(image, annotationCanvas).then(blob => {
       if (!blob) {
         return;
       }
 
+      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+        setError(`Annotated image is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
+        setShakeKey(k => k + 1);
+        return;
+      }
+
       const originalFile = attachments[previewModal.index];
-      const originalName = originalFile?.name || `annotated-${previewModal.index + 1}.png`;
-      const mimeType = blob.type || originalFile?.type || 'image/png';
+      const originalName = getAnnotatedFileName(originalFile?.name || `annotated-${previewModal.index + 1}.jpg`);
+      const mimeType = ANNOTATED_IMAGE_TYPE;
       const nextFile = new File([blob], originalName, { type: mimeType });
       const nextPreview = URL.createObjectURL(blob);
 
@@ -292,7 +336,7 @@ export default function TicketFormPage() {
       setPreviewModal({ index: previewModal.index, mode: 'preview' });
       setAnnotationPreview(nextPreview);
       setIsDrawing(false);
-    }, attachments[previewModal.index]?.type || 'image/png');
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -310,6 +354,11 @@ export default function TicketFormPage() {
     try {
       const ticketPayload = {
         ...form,
+        title: form.title.trim(),
+        location: form.location.trim(),
+        description: form.description.trim(),
+        contactEmail: form.contactEmail.trim(),
+        contactPhone: form.contactPhone.trim(),
         category: form.category === 'AUTO' ? undefined : form.category,
         priority: form.priority === 'AUTO' ? undefined : form.priority,
       };
@@ -529,7 +578,7 @@ export default function TicketFormPage() {
               >
                 <Image className="w-8 h-8 text-slate-600 mb-2" />
                 <p className="text-sm text-slate-500 font-medium">Click or drag to upload</p>
-                <p className="text-xs text-slate-600 mt-1">Up to 3 images as evidence (PNG, JPG, etc.)</p>
+                <p className="text-xs text-slate-600 mt-1">Up to 3 images, max {MAX_IMAGE_SIZE_LABEL} each (PNG, JPG, etc.)</p>
               </motion.div>
             )}
 
@@ -612,13 +661,15 @@ export default function TicketFormPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Contact Phone</label>
-              <input type="tel" value={form.contactPhone} 
+              <input type="tel" value={form.contactPhone}
+                inputMode="numeric"
+                maxLength={10}
                 onChange={e => {
-                  setForm({ ...form, contactPhone: e.target.value });
+                  setForm({ ...form, contactPhone: normalizePhoneNumber(e.target.value) });
                   if (fieldErrors.contactPhone) setFieldErrors({ ...fieldErrors, contactPhone: '' });
                 }}
                 className={`glass-input w-full px-4 py-3 rounded-xl text-sm ${fieldErrors.contactPhone ? 'border-rose-500/50 bg-rose-500/5' : ''}`}
-                placeholder="+94 77 123 4567" />
+                placeholder="0771234567" />
               {fieldErrors.contactPhone && <p className="text-rose-400 text-xs mt-1.5 ml-1 font-medium">{fieldErrors.contactPhone}</p>}
             </div>
           </div>

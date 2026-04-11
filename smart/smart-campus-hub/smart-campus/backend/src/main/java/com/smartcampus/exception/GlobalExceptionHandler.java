@@ -9,6 +9,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
@@ -55,13 +56,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse> handleMaxSizeException(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(ApiResponse.error("File size exceeds maximum allowed size"));
+                .body(ApiResponse.error("Each evidence image must be 10MB or smaller. You can upload up to 3 images per ticket."));
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
     public ResponseEntity<ApiResponse> handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
         return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
                 .body(ApiResponse.error("Requested response format is not supported"));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error("Unsupported request format. Please refresh the page and try again."));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

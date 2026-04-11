@@ -40,6 +40,67 @@ type EditAttachmentItem = {
   revokeOnCleanup: boolean;
 };
 
+const normalizePhoneNumber = (value: string) => value.replace(/\D/g, '').slice(0, 10);
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_SIZE_LABEL = '10MB';
+const MAX_ANNOTATED_IMAGE_DIMENSION = 1600;
+const ANNOTATED_IMAGE_TYPE = 'image/jpeg';
+
+const getAnnotatedFileName = (name: string) => {
+  const baseName = name.replace(/\.[^.]+$/, '') || 'annotated-evidence';
+  return `${baseName}-annotated.jpg`;
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality: number) =>
+  new Promise<Blob | null>(resolve => canvas.toBlob(resolve, type, quality));
+
+const getErrorMessage = (err: unknown, fallback: string) => {
+  const error = err as { response?: { data?: unknown }; message?: string };
+  const data = error.response?.data;
+  if (typeof data === 'string') {
+    return data;
+  }
+  if (data && typeof data === 'object') {
+    const maybeMessage = (data as { message?: unknown }).message;
+    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+    const fieldMessages = Object.values(data as Record<string, unknown>)
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    if (fieldMessages.length > 0) {
+      return fieldMessages.join('\n');
+    }
+  }
+  return error.message || fallback;
+};
+
+const exportAnnotatedImage = async (image: HTMLImageElement, annotationCanvas: HTMLCanvasElement) => {
+  const originalWidth = image.naturalWidth || image.width;
+  const originalHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, MAX_ANNOTATED_IMAGE_DIMENSION / Math.max(originalWidth, originalHeight));
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = Math.max(1, Math.round(originalWidth * scale));
+  exportCanvas.height = Math.max(1, Math.round(originalHeight * scale));
+  const exportContext = exportCanvas.getContext('2d');
+  if (!exportContext) {
+    return null;
+  }
+
+  exportContext.fillStyle = '#ffffff';
+  exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+  exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+  exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+  for (const quality of [0.86, 0.76, 0.66, 0.56, 0.46]) {
+    const blob = await canvasToBlob(exportCanvas, ANNOTATED_IMAGE_TYPE, quality);
+    if (blob && blob.size <= MAX_IMAGE_SIZE_BYTES) {
+      return blob;
+    }
+  }
+
+  return canvasToBlob(exportCanvas, ANNOTATED_IMAGE_TYPE, 0.36);
+};
+
 export default function TicketDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -159,32 +220,97 @@ export default function TicketDetailPage() {
 
   const handleEditTicket = async () => {
     if (!id || !editTicketData) return;
+
+    const normalizedTitle = editTicketData.title?.trim() || '';
+    const normalizedLocation = editTicketData.location?.trim() || '';
+    const normalizedDescription = editTicketData.description?.trim() || '';
+    const normalizedEmail = editTicketData.contactEmail?.trim() || '';
+    const normalizedPhone = editTicketData.contactPhone?.trim() || '';
+
+    if (normalizedTitle.length < 5) {
+      alert('Title must be at least 5 characters');
+      return;
+    }
+
+    if (!normalizedLocation) {
+      alert('Location is required');
+      return;
+    }
+
+    if (normalizedDescription.length < 20) {
+      alert('Description must be at least 20 characters');
+      return;
+    }
+
+    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      alert('Invalid email format');
+      return;
+    }
+
+    if (normalizedPhone && !/^[0-9]{10}$/.test(normalizedPhone)) {
+      alert('Phone number must be exactly 10 digits');
+      return;
+    }
+
     try {
+      const retainedAttachmentUrls = editAttachments
+        .filter(item => item.existingUrl && !item.file)
+        .map(item => item.existingUrl);
+
       const ticketPayload = {
-        ...editTicketData,
-        retainedAttachmentUrls: editAttachments
-          .filter(item => item.existingUrl && !item.file)
-          .map(item => item.existingUrl),
+        title: normalizedTitle,
+        facilityId: editTicketData.facilityId || '',
+        location: normalizedLocation,
+        category: editTicketData.category || '',
+        description: normalizedDescription,
+        priority: editTicketData.priority || '',
+        contactEmail: normalizedEmail,
+        contactPhone: normalizedPhone,
+        assignedTo: editTicketData.assignedTo || '',
+        assignedToName: editTicketData.assignedToName || '',
+        retainedAttachmentUrls,
       };
 
-      const formData = new FormData();
-      const ticketFile = new File(
-        [JSON.stringify(ticketPayload)],
-        'ticket.json',
-        { type: 'application/json' }
-      );
-      formData.append('ticket', ticketFile);
-      editAttachments
-        .filter(item => item.file)
-        .forEach((item, index) => {
-          formData.append('files', item.file!, item.file?.name || `edited-evidence-${index + 1}.png`);
-        });
+      const hasNewOrAnnotatedFiles = editAttachments.some(item => item.file);
+      const originalAttachmentUrls = ticket?.attachmentUrls || [];
+      const attachmentsChanged = hasNewOrAnnotatedFiles
+        || retainedAttachmentUrls.length !== originalAttachmentUrls.length
+        || retainedAttachmentUrls.some(url => !originalAttachmentUrls.includes(url));
 
-      await ticketApi.updateWithFiles(id, formData);
+      if (attachmentsChanged) {
+        const formData = new FormData();
+        const ticketFile = new File(
+          [JSON.stringify(ticketPayload)],
+          'ticket.json',
+          { type: 'application/json' }
+        );
+        formData.append('ticket', ticketFile);
+        editAttachments
+          .filter(item => item.file)
+          .forEach((item, index) => {
+            formData.append('files', item.file!, item.file?.name || `edited-evidence-${index + 1}.png`);
+          });
+        try {
+          await ticketApi.updateWithFiles(id, formData);
+        } catch (err: unknown) {
+          const error = err as { response?: { status?: number; data?: unknown } };
+          const message = getErrorMessage(err, '');
+          const routeMissing = error.response?.status === 404 && message.toLowerCase().includes('static resource');
+          if (!routeMissing) {
+            throw err;
+          }
+          await ticketApi.updateWithFilesLegacy(id, formData);
+        }
+      } else {
+        await ticketApi.update(id, ticketPayload);
+      }
+
       const res = await ticketApi.getById(id);
       setTicket(res.data);
       stopEditingTicket();
-    } catch { alert('Failed to update ticket'); }
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to update ticket'));
+    }
   };
 
   const handleDeleteTicket = async () => {
@@ -224,6 +350,15 @@ export default function TicketDetailPage() {
 
   const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    const oversizedFile = files.find(file => file.size > MAX_IMAGE_SIZE_BYTES);
+    if (oversizedFile) {
+      alert(`${oversizedFile.name} is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
+      if (editFileInputRef.current) {
+        editFileInputRef.current.value = '';
+      }
+      return;
+    }
+
     const remaining = 3 - editAttachments.length;
     const toAdd = files.slice(0, remaining).map((file, index) => ({
       id: `new-${Date.now()}-${index}`,
@@ -391,24 +526,18 @@ export default function TicketDetailPage() {
       tempSourceToRevoke = revoke ? source : null;
       const exportImage = await loadImageElement(source);
 
-      const exportCanvas = document.createElement('canvas');
-      exportCanvas.width = exportImage.naturalWidth || image.naturalWidth || image.width;
-      exportCanvas.height = exportImage.naturalHeight || image.naturalHeight || image.height;
-      const exportContext = exportCanvas.getContext('2d');
-      if (!exportContext || exportCanvas.width === 0 || exportCanvas.height === 0) {
+      const blob = await exportAnnotatedImage(exportImage, annotationCanvas);
+      if (!blob) {
         throw new Error('Failed to prepare annotation export');
       }
 
-      exportContext.drawImage(exportImage, 0, 0, exportCanvas.width, exportCanvas.height);
-      exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+        alert(`Annotated image is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
+        return;
+      }
 
-      exportCanvas.toBlob(blob => {
-        if (!blob) {
-          alert('Failed to save annotation');
-          return;
-        }
-        const fileName = currentItem.name || `annotated-evidence-${previewIndex + 1}.png`;
-        const fileType = blob.type || currentItem.file?.type || 'image/png';
+      const fileName = getAnnotatedFileName(currentItem.name || `annotated-evidence-${previewIndex + 1}.jpg`);
+      const fileType = ANNOTATED_IMAGE_TYPE;
         const nextFile = new File([blob], fileName, { type: fileType });
         const nextPreviewUrl = URL.createObjectURL(blob);
 
@@ -430,7 +559,6 @@ export default function TicketDetailPage() {
         setAnnotationPreview(nextPreviewUrl);
         setPreviewModal({ index: previewIndex, mode: 'preview' });
         setIsDrawing(false);
-      }, currentItem.file?.type || 'image/png');
     } catch {
       alert('Failed to save annotation');
     } finally {
@@ -594,7 +722,9 @@ export default function TicketDetailPage() {
                     type="tel"
                     className="glass-input w-full px-3 py-2 rounded-lg text-sm"
                     value={editTicketData.contactPhone || ''}
-                    onChange={e => setEditTicketData({ ...editTicketData, contactPhone: e.target.value })}
+                    inputMode="numeric"
+                    maxLength={10}
+                    onChange={e => setEditTicketData({ ...editTicketData, contactPhone: normalizePhoneNumber(e.target.value) })}
                   />
                 </div>
               </div>
@@ -682,6 +812,7 @@ export default function TicketDetailPage() {
                     style={{ background: 'rgba(255,255,255,0.03)' }}
                   >
                     Click to upload evidence photos
+                    <span className="block mt-1 text-xs text-slate-600">Max {MAX_IMAGE_SIZE_LABEL} per image</span>
                   </button>
                 )}
               </div>

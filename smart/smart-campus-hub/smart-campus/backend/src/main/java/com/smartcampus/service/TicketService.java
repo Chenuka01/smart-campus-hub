@@ -236,9 +236,11 @@ public class TicketService {
             throw new RuntimeException("Cannot edit ticket that is already " + ticket.getStatus());
         }
 
+        String category = isBlank(request.getCategory()) ? ticket.getCategory() : request.getCategory();
+        String priority = isBlank(request.getPriority()) ? ticket.getPriority().name() : request.getPriority();
         TicketClassificationService.TicketClassification classification = ticketClassificationService.classify(
                 request.getTitle(), request.getDescription(), request.getLocation(),
-                request.getCategory(), request.getPriority());
+                category, priority);
 
         ticket.setTitle(request.getTitle());
         ticket.setCategory(classification.category());
@@ -255,6 +257,10 @@ public class TicketService {
         applySlaState(ticket);
 
         return ticketRepository.save(ticket);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     public void deleteTicket(String ticketId) {

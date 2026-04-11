@@ -15,6 +15,13 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (config.data instanceof FormData) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type');
+    } else {
+      delete config.headers['Content-Type'];
+    }
+  }
   return config;
 });
 
@@ -93,20 +100,15 @@ export const bookingApi = {
 // Tickets API
 export const ticketApi = {
   create: (data: Record<string, unknown>) => api.post('/tickets/simple', data),
-  createWithFiles: (formData: FormData) =>
-    api.post('/tickets', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  createWithFiles: (formData: FormData) => api.post('/tickets', formData),
   getMy: () => api.get('/tickets/my'),
   getAssigned: () => api.get('/tickets/assigned'),
   getAll: (status?: string) =>
     api.get('/tickets', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/tickets/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.put(`/tickets/${id}`, data),
-  updateWithFiles: (id: string, formData: FormData) =>
-    api.put(`/tickets/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  updateWithFiles: (id: string, formData: FormData) => api.put(`/tickets/${id}/with-files`, formData),
+  updateWithFilesLegacy: (id: string, formData: FormData) => api.put(`/tickets/${id}`, formData),
   assign: (id: string, technicianId: string, technicianName: string) =>
     api.put(`/tickets/${id}/assign`, { technicianId, technicianName }),
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>
@@ -148,4 +150,3 @@ export const notificationApi = {
 };
 
 export default api;
-
