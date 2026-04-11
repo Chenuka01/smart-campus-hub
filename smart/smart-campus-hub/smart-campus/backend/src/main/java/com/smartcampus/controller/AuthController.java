@@ -48,9 +48,8 @@ public class AuthController {
     }
 
     /**
-     * Real Google OAuth 2.0 endpoint.
-     * Accepts a Google ID token (credential) from Google Identity Services (GSI),
-     * verifies it server-side using Google's tokeninfo API, then issues a SmartCampus JWT.
+     * POST: Verify Google OAuth 2.0 credential and authenticate user.
+     * Improvements for secure OAuth integration.
      */
     @PostMapping("/google/verify")
     public ResponseEntity<AuthResponse> googleVerify(@RequestBody Map<String, String> request) {

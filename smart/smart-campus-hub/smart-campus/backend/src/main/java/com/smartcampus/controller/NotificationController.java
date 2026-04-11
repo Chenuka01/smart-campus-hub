@@ -23,6 +23,9 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
+    /**
+     * GET: Retrieve all notifications for the currently authenticated user.
+     */
     @GetMapping
     public ResponseEntity<List<Notification>> getMyNotifications(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(notificationService.getUserNotifications(user.getId()));
@@ -56,6 +59,9 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("All notifications marked as read"));
     }
 
+    /**
+     * DELETE: Remove a specific notification by its ID.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse> deleteNotification(@PathVariable String id) {
         notificationService.deleteNotification(id);
@@ -72,6 +78,9 @@ public class NotificationController {
         prefs.setDndMode(user.isDndEnabled());
         prefs.setDndStart(user.getDndStartTime());
         prefs.setDndEnd(user.getDndEndTime());
+    /**
+     * PUT: Update user notification preferences (Email, DND mode, etc.).
+     */
         return ResponseEntity.ok(prefs);
     }
 
