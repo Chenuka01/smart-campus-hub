@@ -311,11 +311,11 @@ export default function FacilityTypeDetailsPage() {
 
                 {/* Status Indicator */}
                 {facility.status !== 'ACTIVE' && (
-                  <div className="mb-4 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                  <div className="mb-4">
+                    <span className={`w-full inline-flex items-center justify-center px-2.5 py-2 rounded-xl text-xs font-bold border ${
                       facility.status === 'UNDER_MAINTENANCE' 
-                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
-                        : 'bg-red-500/10 text-red-500 border-red-500/20'
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]' 
+                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.1)]'
                     }`}>
                       {facility.status === 'UNDER_MAINTENANCE' ? '🔧 Under Maintenance' : '❌ Out of Service'}
                     </span>
