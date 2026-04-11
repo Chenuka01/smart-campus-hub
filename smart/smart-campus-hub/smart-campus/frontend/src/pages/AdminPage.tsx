@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, facilityApi, bookingApi, ticketApi } from '@/lib/api';
 import type { User, Facility, Booking, Ticket } from '@/lib/types';
-import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle, X } from 'lucide-react';
+import { Shield, Users, Building2, CalendarDays, Ticket as TicketIcon, BarChart3, PieChart, ShieldAlert, Trash2, Edit2, CheckCircle, AlertTriangle, X, Search, Filter, Calendar, ArrowRight } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, statCounterVariants, fadeScaleVariants } from '@/lib/animations';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area } from 'recharts';
 
 const glassTooltipStyle = {
   backgroundColor: 'rgba(15,8,40,0.95)',
@@ -27,6 +27,20 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [roleModal, setRoleModal] = useState<{ userId: string; currentRoles: string[] } | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [ticketDateFilter, setTicketDateFilter] = useState('');
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('ALL');
+
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+
+  const [facilitySearch, setFacilitySearch] = useState('');
+  const [facilityStatusFilter, setFacilityStatusFilter] = useState('ALL');
+
+  const [bookingSearch, setBookingSearch] = useState('');
+  const [bookingDateFilter, setBookingDateFilter] = useState('');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('ALL');
 
   const [actionModal, setActionModal] = useState<{ id: string; action: string } | null>(null);
   const [reason, setReason] = useState('');
@@ -139,11 +153,38 @@ export default function AdminPage() {
     return acc;
   }, [] as { name: string; value: number }[]);
 
+  // Advanced Analytics Processing
+  const bookingTrendData = bookings.reduce((acc, b) => {
+    const date = b.date;
+    const existing = acc.find(a => a.date === date);
+    if (existing) existing.count++; else acc.push({ date, count: 1 });
+    return acc;
+  }, [] as { date: string; count: number }[]).sort((a,b) => a.date.localeCompare(b.date)).slice(-14);
+
+  const ticketTrendData = tickets.reduce((acc, t) => {
+    const date = t.createdAt.split('T')[0];
+    const existing = acc.find(a => a.date === date);
+    if (existing) existing.count++; else acc.push({ date, count: 1 });
+    return acc;
+  }, [] as { date: string; count: number }[]).sort((a,b) => a.date.localeCompare(b.date)).slice(-14);
+
+  const facilityUtilizationData = facilities.map(f => {
+    const facilityBookings = bookings.filter(b => b.facilityId === f.id && b.status === 'APPROVED').length;
+    return { name: f.name, utilization: facilityBookings };
+  }).sort((a,b) => b.utilization - a.utilization).slice(0, 5);
+
+  const userEngagementData = users.map(u => {
+    const userBookings = bookings.filter(b => b.userId === u.id).length;
+    const userTickets = tickets.filter(t => t.userId === u.id).length;
+    return { name: u.name, activities: userBookings + userTickets };
+  }).sort((a,b) => b.activities - a.activities).slice(0, 5);
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'facilities', label: 'Facilities', icon: Building2 },
     { id: 'bookings', label: 'Bookings', icon: CalendarDays },
+    { id: 'tickets', label: 'Tickets', icon: TicketIcon },
     { id: 'analytics', label: 'Analytics', icon: PieChart },
   ];
 
@@ -270,7 +311,42 @@ export default function AdminPage() {
 
         {/* Users Tab */}
         {activeTab === 'users' && (
-          <motion.div key="users" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit">
+          <motion.div key="users" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <h3 className="text-lg font-bold text-white">Manage Users</h3>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs w-48 focus:w-64 transition-all"
+                  />
+                </div>
+
+                {/* Role Filter */}
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <select
+                    value={userRoleFilter}
+                    onChange={(e) => setUserRoleFilter(e.target.value)}
+                    className="glass-select pl-9 pr-4 py-2 rounded-xl text-xs font-bold"
+                  >
+                    <option value="ALL">All Roles</option>
+                    <option value="USER">User</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="TECHNICIAN">Technician</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="SUPER_ADMIN">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -282,7 +358,15 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u, i) => (
+                    {users
+                      .filter(u => {
+                        const matchesSearch = userSearch === '' || 
+                          u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
+                          u.email.toLowerCase().includes(userSearch.toLowerCase());
+                        const matchesRole = userRoleFilter === 'ALL' || (u.roles || []).includes(userRoleFilter);
+                        return matchesSearch && matchesRole;
+                      })
+                      .map((u, i) => (
                       <motion.tr
                         key={u.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -400,12 +484,43 @@ export default function AdminPage() {
         {/* Facilities Tab */}
         {activeTab === 'facilities' && (
           <motion.div key="facilities" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
               <h3 className="text-lg font-bold text-white">Manage Facilities</h3>
-              <NeuButton size="sm" variant="primary" onClick={() => window.location.href='/admin/facility/new'}>
-                Add Facility
-              </NeuButton>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search facilities..."
+                    value={facilitySearch}
+                    onChange={(e) => setFacilitySearch(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs w-48 focus:w-64 transition-all"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <select
+                    value={facilityStatusFilter}
+                    onChange={(e) => setFacilityStatusFilter(e.target.value)}
+                    className="glass-select pl-9 pr-4 py-2 rounded-xl text-xs font-bold"
+                  >
+                    <option value="ALL">All Status</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="UNDER_MAINTENANCE">Under Maintenance</option>
+                    <option value="OUT_OF_SERVICE">Out of Service</option>
+                  </select>
+                </div>
+                
+                <NeuButton size="sm" variant="primary" onClick={() => window.location.href='/admin/facility/new'}>
+                  Add Facility
+                </NeuButton>
+              </div>
             </div>
+
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -417,7 +532,15 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {facilities.map((f, i) => (
+                    {facilities
+                      .filter(f => {
+                        const matchesSearch = facilitySearch === '' || 
+                          f.name.toLowerCase().includes(facilitySearch.toLowerCase()) || 
+                          f.type.toLowerCase().includes(facilitySearch.toLowerCase());
+                        const matchesStatus = facilityStatusFilter === 'ALL' || f.status === facilityStatusFilter;
+                        return matchesSearch && matchesStatus;
+                      })
+                      .map((f, i) => (
                       <motion.tr
                         key={f.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -471,7 +594,51 @@ export default function AdminPage() {
         {/* Bookings Tab */}
         {activeTab === 'bookings' && (
           <motion.div key="bookings" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
-            <h3 className="text-lg font-bold text-white mb-2">Manage Bookings</h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <h3 className="text-lg font-bold text-white">Manage Bookings</h3>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search bookings..."
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs w-48 focus:w-64 transition-all"
+                  />
+                </div>
+
+                {/* Date Filter */}
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="date"
+                    value={bookingDateFilter}
+                    onChange={(e) => setBookingDateFilter(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <select
+                    value={bookingStatusFilter}
+                    onChange={(e) => setBookingStatusFilter(e.target.value)}
+                    className="glass-select pl-9 pr-4 py-2 rounded-xl text-xs font-bold"
+                  >
+                    <option value="ALL">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <LiquidGlassCard className="overflow-hidden" depth={2}>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -483,7 +650,17 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bookings.map((b, i) => (
+                    {bookings
+                      .filter(b => {
+                        const matchesSearch = bookingSearch === '' || 
+                          b.userName.toLowerCase().includes(bookingSearch.toLowerCase()) || 
+                          b.facilityName.toLowerCase().includes(bookingSearch.toLowerCase()) ||
+                          (b.purpose && b.purpose.toLowerCase().includes(bookingSearch.toLowerCase()));
+                        const matchesDate = bookingDateFilter === '' || b.date === bookingDateFilter;
+                        const matchesStatus = bookingStatusFilter === 'ALL' || b.status === bookingStatusFilter;
+                        return matchesSearch && matchesDate && matchesStatus;
+                      })
+                      .map((b, i) => (
                       <motion.tr
                         key={b.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -534,50 +711,331 @@ export default function AdminPage() {
           </motion.div>
         )}
 
+        {/* Tickets Tab */}
+        {activeTab === 'tickets' && (
+          <motion.div key="tickets" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <h3 className="text-lg font-bold text-white">Manage Tickets</h3>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search tickets..."
+                    value={ticketSearch}
+                    onChange={(e) => setTicketSearch(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs w-48 focus:w-64 transition-all"
+                  />
+                </div>
+
+                {/* Date Filter */}
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="date"
+                    value={ticketDateFilter}
+                    onChange={(e) => setTicketDateFilter(e.target.value)}
+                    className="glass-input pl-9 pr-4 py-2 rounded-xl text-xs"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <select
+                    value={ticketStatusFilter}
+                    onChange={(e) => setTicketStatusFilter(e.target.value)}
+                    className="glass-select pl-9 pr-4 py-2 rounded-xl text-xs font-bold"
+                  >
+                    <option value="ALL">All Status</option>
+                    <option value="OPEN">Open</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <LiquidGlassCard className="overflow-hidden" depth={2}>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      {['Ticket info', 'User/Reporter', 'Date', 'Priority', 'Status', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tickets
+                      .filter(t => {
+                        const matchesSearch = ticketSearch === '' || 
+                          t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
+                          t.description.toLowerCase().includes(ticketSearch.toLowerCase()) ||
+                          t.id.slice(0,8).toLowerCase().includes(ticketSearch.toLowerCase());
+                        
+                        const matchesDate = ticketDateFilter === '' || t.createdAt.startsWith(ticketDateFilter);
+                        const matchesStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;
+                        
+                        return matchesSearch && matchesDate && matchesStatus;
+                      })
+                      .map((t, i) => (
+                      <motion.tr
+                        key={t.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="transition-colors group cursor-pointer hover:bg-white/[0.02]"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                        onClick={() => window.location.href=`/tickets/${t.id}`}
+                      >
+                        <td className="px-4 py-4 min-w-[200px]">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <TicketIcon className="w-4 h-4 text-violet-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-white line-clamp-1">{t.subject}</p>
+                              <p className="text-[10px] text-slate-500 font-mono mt-0.5 uppercase tracking-tighter">ID: {t.id.slice(0,8)}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-xs font-bold text-slate-300">{t.reporterName || 'Student/Staff'}</p>
+                          <p className="text-[10px] text-slate-500 truncate max-w-[120px]">{t.facilityId ? 'Building Resource' : 'Campus Issue'}</p>
+                        </td>
+                        <td className="px-4 py-4 text-xs text-slate-400 font-medium">
+                          {new Date(t.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                            t.priority === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400' :
+                            t.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                            t.priority === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-slate-500/20 text-slate-400'
+                          }`}>
+                            {t.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                            t.status === 'OPEN' ? 'bg-blue-400/10 text-blue-400 border-blue-400/20' :
+                            t.status === 'IN_PROGRESS' ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' :
+                            t.status === 'RESOLVED' ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20' :
+                            t.status === 'REJECTED' ? 'bg-rose-400/10 text-rose-400 border-rose-400/20' :
+                            'bg-slate-400/10 text-slate-400 border-slate-400/20'
+                          }`}>
+                            {t.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                             <button 
+                                onClick={() => window.location.href=`/tickets/${t.id}`}
+                                className="p-2 rounded-lg text-blue-400 hover:bg-blue-400/10 transition-colors"
+                                title="Manage Ticket"
+                             >
+                                <ArrowRight className="w-4 h-4" />
+                             </button>
+                             <button 
+                                onClick={async () => {
+                                  if(confirm('Delete ticket permanently?')) {
+                                    await ticketApi.delete(t.id);
+                                    setTickets(tickets.filter(x => x.id !== t.id));
+                                  }
+                                }}
+                                className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors"
+                                title="Delete Permanently"
+                             >
+                                <Trash2 className="w-4 h-4" />
+                             </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                    {tickets.filter(t => {
+                        const matchesSearch = ticketSearch === '' || 
+                          t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
+                          t.id.toLowerCase().includes(ticketSearch.toLowerCase());
+                        const matchesDate = ticketDateFilter === '' || t.createdAt.startsWith(ticketDateFilter);
+                        const matchesStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;
+                        return matchesSearch && matchesDate && matchesStatus;
+                      }).length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-500 text-sm italic font-medium">
+                          No tickets match your filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </LiquidGlassCard>
+          </motion.div>
+        )}
+
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
-          <motion.div key="analytics" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-5">
+          <motion.div key="analytics" variants={fadeScaleVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-bold text-white tracking-tight">Advanced System Analytics</h2>
+              <div className="px-3 py-1.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-xs font-bold text-violet-400 capitalize">
+                Report Generated: {new Date().toLocaleDateString()}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Booking & Ticket Trends */}
               <LiquidGlassCard depth={2}>
-                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-5">Ticket Priority</h3>
-                <ResponsiveContainer width="100%" height={220}>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-sm font-bold text-white uppercase tracking-widest">Booking & Incident Trends</h3>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]"></div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Bookings</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Incidents</span>
+                    </div>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={bookingTrendData.map((d, i) => ({
+                    date: d.date,
+                    bookings: d.count,
+                    tickets: ticketTrendData.find(t => t.date === d.date)?.count || 0
+                  }))}>
+                    <defs>
+                      <linearGradient id="colorBookings" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorTickets" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 9, fill: '#64748b' }} 
+                      axisLine={false}
+                      tickFormatter={(val) => val.split('-').slice(1).join('/')}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={glassTooltipStyle} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                    <Area type="monotone" dataKey="bookings" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorBookings)" />
+                    <Area type="monotone" dataKey="tickets" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorTickets)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </LiquidGlassCard>
+
+              {/* Facility Utilization */}
+              <LiquidGlassCard depth={2}>
+                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">Top Facility Utilization</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={facilityUtilizationData} layout="vertical" margin={{ left: 20 }}>
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#e2e8f0', fontWeight: 'bold' }} axisLine={false} tickLine={false} width={120} />
+                    <Tooltip contentStyle={glassTooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="utilization" radius={[0, 6, 6, 0]} barSize={20}>
+                      {facilityUtilizationData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index === 0 ? '#8b5cf6' : '#6366f1'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </LiquidGlassCard>
+
+              {/* Status Distributions */}
+              <LiquidGlassCard depth={2}>
+                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8 text-center">Ticket Priority Distribution</h3>
+                <ResponsiveContainer width="100%" height={280}>
                   <RPieChart>
-                    <Pie data={ticketPriorityData} cx="50%" cy="50%" outerRadius={75} innerRadius={35} dataKey="value" paddingAngle={3}>
+                    <Pie data={ticketPriorityData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" paddingAngle={5}>
                       {ticketPriorityData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="rgba(255,255,255,0.05)" strokeWidth={2} />)}
                     </Pie>
                     <Tooltip contentStyle={glassTooltipStyle} />
-                    <Legend wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', color: '#94a3b8', paddingTop: '20px' }} iconType="circle" />
                   </RPieChart>
                 </ResponsiveContainer>
               </LiquidGlassCard>
 
+              {/* Key Metrics Summary */}
               <LiquidGlassCard depth={2}>
-                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-5">Quick Stats</h3>
-                <div className="space-y-5">
+                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-8">System Health & Engagement</h3>
+                <div className="space-y-6">
                   {[
-                    { label: 'Active Facilities', value: facilities.filter(f => f.status === 'ACTIVE').length, total: facilities.length, color: '#10b981', glow: 'rgba(16,185,129,0.4)' },
-                    { label: 'Pending Bookings', value: bookings.filter(b => b.status === 'PENDING').length, total: bookings.length, color: '#f59e0b', glow: 'rgba(245,158,11,0.4)' },
-                    { label: 'Open Tickets', value: tickets.filter(t => t.status === 'OPEN').length, total: tickets.length, color: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
-                    { label: 'Critical Tickets', value: tickets.filter(t => t.priority === 'CRITICAL').length, total: tickets.length, color: '#f43f5e', glow: 'rgba(244,63,94,0.4)' },
-                  ].map(stat => (
-                    <div key={stat.label}>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400 font-medium">{stat.label}</span>
-                        <span className="font-bold text-white">{stat.value}<span className="text-slate-600">/{stat.total}</span></span>
+                    { label: 'Resource Availability', value: facilities.filter(f => f.status === 'ACTIVE').length, total: facilities.length, color: '#10b981', glow: 'rgba(16,185,129,0.4)', icon: Building2 },
+                    { label: 'Booking Fulfillment', value: bookings.filter(b => b.status === 'APPROVED').length, total: bookings.length, color: '#f59e0b', glow: 'rgba(245,158,11,0.4)', icon: CalendarDays },
+                    { label: 'Ticket Resolution Rate', value: tickets.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED').length, total: tickets.length, color: '#3b82f6', glow: 'rgba(59,130,246,0.4)', icon: TicketIcon },
+                    { label: 'Critical Incident Load', value: tickets.filter(t => t.priority === 'CRITICAL').length, total: tickets.filter(t => t.status === 'OPEN').length || 1, color: '#f43f5e', glow: 'rgba(244,63,94,0.4)', icon: AlertTriangle },
+                  ].map(stat => {
+                    const Icon = stat.icon;
+                    return (
+                      <div key={stat.label}>
+                        <div className="flex justify-between items-center text-sm mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/5 border border-white/10">
+                              <Icon className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <span className="text-slate-300 font-bold text-xs uppercase tracking-wider">{stat.label}</span>
+                          </div>
+                          <span className="font-black text-white text-lg">
+                            {Math.round((stat.value / (stat.total || 1)) * 100)}%
+                            <span className="text-[10px] text-slate-500 ml-1 font-bold">({stat.value}/{stat.total})</span>
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden bg-white/5 border border-white/5">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${stat.total > 0 ? (stat.value / stat.total) * 100 : 0}%` }}
+                            transition={{ duration: 1, ease: 'circOut' }}
+                            className="h-full rounded-full"
+                            style={{ 
+                              background: `linear-gradient(90deg, ${stat.color}, ${stat.color}99)`, 
+                              boxShadow: `0 0 12px ${stat.glow}` 
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${stat.total > 0 ? (stat.value / stat.total) * 100 : 0}%` }}
-                          transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
-                          className="h-full rounded-full"
-                          style={{ background: `linear-gradient(90deg, ${stat.color}, ${stat.color}aa)`, boxShadow: `0 0 8px ${stat.glow}` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </LiquidGlassCard>
+
+              {/* User Engagement (Top Power Users) */}
+              <div className="lg:col-span-2">
+                <LiquidGlassCard depth={2}>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <Users className="w-5 h-5 text-violet-400" />
+                    Top System Contributors (Activity Rank)
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {userEngagementData.map((user, idx) => (
+                      <motion.div 
+                        key={user.name}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center text-center relative overflow-hidden group"
+                      >
+                        <div className="absolute top-0 right-0 p-2 text-[10px] font-black text-white/10 group-hover:text-violet-500/20 transition-colors">#{idx + 1}</div>
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center font-black text-white text-lg mb-3 shadow-[0_8px_16px_rgba(139,92,246,0.3)]">
+                          {user.name.charAt(0)}
+                        </div>
+                        <p className="text-sm font-bold text-white truncate w-full">{user.name}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-tighter">{user.activities} Total Interactions</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </LiquidGlassCard>
+              </div>
             </div>
           </motion.div>
         )}

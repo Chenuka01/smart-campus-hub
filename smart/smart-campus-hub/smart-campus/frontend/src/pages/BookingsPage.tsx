@@ -248,7 +248,24 @@ export default function BookingsPage() {
                         <NeuButton size="sm" variant="danger" onClick={(e) => { e.stopPropagation(); setActionModal({ id: booking.id, action: 'reject' }); }}>Reject</NeuButton>
                       </div>
                     )}
-                    {!isAdmin && !isManager && booking.userId === user?.id && (booking.status === 'PENDING' || booking.status === 'APPROVED') && (
+                    
+                    {!userCanManage && booking.userId === user?.id && booking.status === 'PENDING' && (
+                      <div className="flex gap-2">
+                         <NeuButton 
+                          size="sm" 
+                          variant="primary" 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            navigate(`/bookings/new`, { state: { isUpdating: true, booking } }); 
+                          }}
+                        >
+                          Update
+                        </NeuButton>
+                        <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel</NeuButton>
+                      </div>
+                    )}
+
+                    {!userCanManage && booking.userId === user?.id && booking.status === 'APPROVED' && (
                       <NeuButton size="sm" variant="secondary" onClick={() => setActionModal({ id: booking.id, action: 'cancel' })}>Cancel Booking</NeuButton>
                     )}
                     {!isAdmin && (booking.status === 'APPROVED' || booking.status === 'COMPLETED') && (

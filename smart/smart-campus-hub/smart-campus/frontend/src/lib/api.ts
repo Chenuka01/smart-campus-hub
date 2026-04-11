@@ -83,6 +83,7 @@ export const bookingApi = {
     api.get('/bookings', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/bookings/${id}`),
   getByFacility: (facilityId: string) => api.get(`/bookings/facility/${facilityId}`),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/bookings/${id}`, data),
   approve: (id: string) => api.put(`/bookings/${id}/approve`),
   reject: (id: string, reason: string) =>
     api.put(`/bookings/${id}/reject`, { reason }),

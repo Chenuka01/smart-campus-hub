@@ -56,6 +56,14 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getBookingsByFacility(facilityId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Booking> updateBooking(
+            @PathVariable String id,
+            @Valid @RequestBody BookingRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(bookingService.updateBooking(id, request, user));
+    }
+
     @PutMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Booking> approveBooking(
