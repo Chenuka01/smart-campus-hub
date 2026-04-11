@@ -298,6 +298,10 @@ public class TicketService {
         ticketRepository.deleteAllById(ids);
     }
 
+    public int resetStaleInProgressToOpen() {
+        return ticketRepository.updateStatusByStatus(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.OPEN);
+    }
+
     public void clearAllClosedResolvedTickets() {
         List<Ticket> toDelete = ticketRepository.findAll().stream()
                 .filter(t -> t.getStatus() == Ticket.TicketStatus.CLOSED || t.getStatus() == Ticket.TicketStatus.RESOLVED)
@@ -317,7 +321,7 @@ public class TicketService {
                 .map(technician -> {
                     ticket.setAssignedTo(technician.getId());
                     ticket.setAssignedToName(technician.getName());
-                    ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+                    // Keep status as OPEN; technician must manually start it
                     return technician;
                 })
                 .orElse(null);

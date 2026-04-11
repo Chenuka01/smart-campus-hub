@@ -181,4 +181,11 @@ public class TicketController {
         ticketService.clearAllClosedResolvedTickets();
         return ResponseEntity.ok(ApiResponse.success("Ticket history cleared successfully"));
     }
+
+    @PostMapping("/reset-stale-inprogress")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> resetStaleInProgress() {
+        int updatedCount = ticketService.resetStaleInProgressToOpen();
+        return ResponseEntity.ok(ApiResponse.success("Successfully reset " + updatedCount + " tickets back to OPEN status."));
+    }
 }

@@ -74,7 +74,7 @@ export default function TicketFormPage() {
   const [previews, setPreviews] = useState<string[]>([]);
   const [form, setForm] = useState({
     title: '', facilityId: '', location: '', category: 'AUTO',
-    description: '', priority: 'AUTO', contactEmail: '', contactPhone: '',
+    description: '', priority: 'AUTO', status: 'OPEN', contactEmail: '', contactPhone: '',
     assignedTo: '', assignedToName: ''
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -353,14 +353,17 @@ export default function TicketFormPage() {
     setSaving(true);
     try {
       const ticketPayload = {
-        ...form,
         title: form.title.trim(),
+        facilityId: form.facilityId,
         location: form.location.trim(),
         description: form.description.trim(),
         contactEmail: form.contactEmail.trim(),
         contactPhone: form.contactPhone.trim(),
         category: form.category === 'AUTO' ? undefined : form.category,
         priority: form.priority === 'AUTO' ? undefined : form.priority,
+        assignedTo: form.assignedTo || undefined,
+        assignedToName: form.assignedToName || undefined,
+        status: 'OPEN'
       };
 
       if (attachments.length > 0) {
@@ -478,6 +481,24 @@ export default function TicketFormPage() {
                 <option value="HIGH">High</option>
                 <option value="CRITICAL">Critical</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Ticket Status</label>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+                className="glass-select w-full px-4 py-3 rounded-xl text-sm bg-slate-900/50"
+                disabled={!(isAdmin || isSuperAdmin || isManager)}>
+                <option value="OPEN">Open (Initial)</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1.5 ml-1">
+                {!(isAdmin || isSuperAdmin || isManager) ? "New tickets are always submitted as 'OPEN'." : "Administrative override for initial status."}
+              </p>
             </div>
           </div>
 

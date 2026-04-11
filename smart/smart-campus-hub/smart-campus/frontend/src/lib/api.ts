@@ -96,6 +96,8 @@ export const bookingApi = {
     api.put(`/bookings/${id}/reject`, { reason }),
   cancel: (id: string, reason?: string) =>
     api.put(`/bookings/${id}/cancel`, { reason }),
+  delete: (id: string) => api.delete(`/bookings/${id}`),
+  bulkDelete: (ids: string[]) => api.delete('/bookings/bulk-delete', { data: ids }),
 };
 
 // Tickets API

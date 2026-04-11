@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
+  Calendar,
   CalendarClock,
   Check,
   CheckCheck,
   CheckCircle2,
+  Filter,
   Info,
   Mail,
   MessageSquare,
   Moon,
   Save,
+  Search,
   Settings2,
   Sparkles,
   Ticket,
@@ -65,6 +68,11 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<NotificationView>(canViewAnalytics ? 'analytics' : 'all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('');
+
   const [prefs, setPrefs] = useState({
     bookingAlerts: true,
     ticketUpdates: true,
@@ -230,9 +238,24 @@ export default function NotificationsPage() {
   };
 
   const unreadCount = notifications.filter((notification) => !notification.read).length;
-  const filteredNotifications = view === 'unread'
-    ? notifications.filter((notification) => !notification.read)
-    : notifications;
+  
+  const filteredNotifications = notifications.filter((notification) => {
+    // Basic View Filter
+    if (view === 'unread' && notification.read) return false;
+    
+    // Search Filter
+    const matchesSearch = searchQuery === '' || 
+      notification.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      notification.message.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Type Filter
+    const matchesType = typeFilter === 'ALL' || notification.type === typeFilter;
+    
+    // Date Filter
+    const matchesDate = dateFilter === '' || notification.createdAt.startsWith(dateFilter);
+    
+    return matchesSearch && matchesType && matchesDate;
+  });
 
   const tabs = canViewAnalytics
     ? [
@@ -323,6 +346,49 @@ export default function NotificationsPage() {
           </motion.button>
         ))}
       </motion.div>
+
+      {view !== 'preferences' && view !== 'analytics' && (
+        <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search notifications..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="glass-input pl-10 pr-4 py-2.5 rounded-xl text-sm w-full focus:ring-2 focus:ring-violet-500/20 transition-all"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:flex-none">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="glass-select pl-10 pr-8 py-2.5 rounded-xl text-xs font-bold w-full md:w-40 appearance-none bg-transparent"
+              >
+                <option value="ALL">All Types</option>
+                <option value="BOOKING_APPROVED">Approved</option>
+                <option value="BOOKING_REJECTED">Rejected</option>
+                <option value="TICKET_STATUS_CHANGED">Status Fix</option>
+                <option value="COMMENT_ADDED">Comments</option>
+                <option value="SYSTEM">System Alerts</option>
+              </select>
+            </div>
+
+            <div className="relative flex-1 md:flex-none">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="glass-input pl-10 pr-4 py-2.5 rounded-xl text-xs font-bold w-full md:w-auto"
+              />
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {view !== 'preferences' && view !== 'analytics' && filteredNotifications.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
@@ -531,100 +597,117 @@ export default function NotificationsPage() {
 
       {view !== 'preferences' && view !== 'analytics' && (
         <AnimatePresence mode="popLayout">
-          {filteredNotifications.map((notification, index) => {
-            const Icon = typeIcons[notification.type] || Bell;
-            const cfg = typeColors[notification.type] || typeColors.SYSTEM;
-            return (
-              <motion.div
-                key={notification.id}
-                custom={index}
-                variants={fadeScaleVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                layout
-              >
-                <LiquidGlassCard
-                  depth={notification.read ? 1 : 2}
-                  glow={notification.read ? undefined : cfg.glow}
-                  className={`overflow-hidden transition-all duration-300 ${
-                    selectedIds.includes(notification.id) 
-                      ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20' 
-                      : ''
-                  }`}
+          {filteredNotifications.length > 0 ? (
+            filteredNotifications.map((notification, index) => {
+              const Icon = typeIcons[notification.type] || Bell;
+              const cfg = typeColors[notification.type] || typeColors.SYSTEM;
+              return (
+                <motion.div
+                  key={notification.id}
+                  custom={index}
+                  variants={fadeScaleVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  layout
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex flex-col items-center gap-3">
-                      <motion.button
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => toggleSelect(notification.id)}
-                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                          selectedIds.includes(notification.id) 
-                            ? 'bg-violet-500 border-violet-400' 
-                            : 'border-white/10 hover:border-violet-500/30'
-                        }`}
-                      >
-                        {selectedIds.includes(notification.id) && <Check className="w-4 h-4 text-white" />}
-                      </motion.button>
-                      <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background: cfg.glassColor,
-                          border: `1px solid ${cfg.glow}`,
-                          boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
-                        }}
-                      >
-                        <Icon className={`w-5 h-5 ${cfg.textColor}`} />
+                  <LiquidGlassCard
+                    depth={notification.read ? 1 : 2}
+                    glow={notification.read ? undefined : cfg.glow}
+                    className={`overflow-hidden transition-all duration-300 ${
+                      selectedIds.includes(notification.id) 
+                        ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20' 
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center gap-3">
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => toggleSelect(notification.id)}
+                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            selectedIds.includes(notification.id) 
+                              ? 'bg-violet-500 border-violet-400' 
+                              : 'border-white/10 hover:border-violet-500/30'
+                          }`}
+                        >
+                          {selectedIds.includes(notification.id) && <Check className="w-4 h-4 text-white" />}
+                        </motion.button>
+                        <div
+                          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                          style={{
+                            background: cfg.glassColor,
+                            border: `1px solid ${cfg.glow}`,
+                            boxShadow: !notification.read ? `0 0 12px ${cfg.glow}` : 'none',
+                          }}
+                        >
+                          <Icon className={`w-5 h-5 ${cfg.textColor}`} />
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className={`text-sm font-bold ${notification.read ? 'text-slate-300' : 'text-white'}`}>
-                          {notification.title}
-                        </h3>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className={`text-sm font-bold ${notification.read ? 'text-slate-300' : 'text-white'}`}>
+                            {notification.title}
+                          </h3>
+                          {!notification.read && (
+                            <span
+                              className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-glow"
+                              style={{ background: cfg.glow.replace('0.3', '0.9') }}
+                            />
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-400 leading-relaxed">{notification.message}</p>
+                        <p className="text-xs text-slate-600 mt-1.5 font-medium">{new Date(notification.createdAt).toLocaleString()}</p>
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {!notification.read && (
-                          <span
-                            className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse-glow"
-                            style={{ background: cfg.glow.replace('0.3', '0.9') }}
-                          />
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            className="p-2 rounded-lg text-emerald-400 hover:bg-emerald-400/10 transition-colors"
+                            title="Mark as read"
+                          >
+                            <Check className="w-4 h-4" />
+                          </motion.button>
                         )}
-                      </div>
-                      <p className="text-sm text-slate-400 leading-relaxed">{notification.message}</p>
-                      <p className="text-xs text-slate-600 mt-1.5 font-medium">{new Date(notification.createdAt).toLocaleString()}</p>
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {!notification.read && (
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleMarkAsRead(notification.id)}
-                          className="p-2 rounded-xl text-slate-500 hover:text-emerald-400 transition-colors"
-                          style={{ background: 'rgba(255,255,255,0.04)' }}
-                          title="Mark as read"
-                          aria-label="Mark as read"
+                          onClick={() => handleDelete(notification.id)}
+                          className="p-2 rounded-lg text-rose-400 hover:bg-rose-400/10 transition-colors group-hover:opacity-100 opacity-50 transition-opacity"
+                          title="Delete notification"
                         >
-                          <Check className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </motion.button>
-                      )}
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => handleDelete(notification.id)}
-                        className="p-2 rounded-xl text-slate-500 hover:text-rose-400 transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.04)' }}
-                        title="Delete"
-                        aria-label="Delete notification"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </motion.button>
+                      </div>
                     </div>
-                  </div>
-                </LiquidGlassCard>
-              </motion.div>
-            );
-          })}
+                  </LiquidGlassCard>
+                </motion.div>
+              );
+            })
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="py-20 text-center"
+            >
+              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-slate-600" />
+              </div>
+              <p className="text-slate-400 font-medium italic">No notifications matching your current filters.</p>
+              <NeuButton 
+                variant="ghost" 
+                size="sm" 
+                className="mt-4 text-violet-400"
+                onClick={() => { setSearchQuery(''); setTypeFilter('ALL'); setDateFilter(''); }}
+              >
+                Clear all filters
+              </NeuButton>
+            </motion.div>
+          )}
         </AnimatePresence>
       )}
 

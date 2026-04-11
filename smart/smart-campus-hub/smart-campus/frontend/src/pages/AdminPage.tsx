@@ -42,6 +42,11 @@ export default function AdminPage() {
   const [bookingDateFilter, setBookingDateFilter] = useState('');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('ALL');
 
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+
   const [actionModal, setActionModal] = useState<{ id: string; action: string } | null>(null);
   const [reason, setReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -85,6 +90,42 @@ export default function AdminPage() {
       alert('Action failed');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async (type: 'users' | 'facilities' | 'bookings' | 'tickets') => {
+    let ids: string[] = [];
+    if (type === 'users') ids = selectedUsers;
+    else if (type === 'facilities') ids = selectedFacilities;
+    else if (type === 'bookings') ids = selectedBookings;
+    else if (type === 'tickets') ids = selectedTickets;
+
+    if (ids.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${ids.length} ${type}? This action cannot be undone.`)) return;
+
+    try {
+      setLoading(true);
+      if (type === 'users') {
+        await Promise.allSettled(ids.map(id => authApi.deleteUser(id)));
+        setUsers(users.filter(u => !ids.includes(u.id)));
+        setSelectedUsers([]);
+      } else if (type === 'facilities') {
+        await Promise.allSettled(ids.map(id => facilityApi.delete(id)));
+        setFacilities(facilities.filter(f => !ids.includes(f.id)));
+        setSelectedFacilities([]);
+      } else if (type === 'bookings') {
+        await bookingApi.bulkDelete(ids);
+        setBookings(bookings.filter(b => !ids.includes(b.id)));
+        setSelectedBookings([]);
+      } else if (type === 'tickets') {
+        await Promise.allSettled(ids.map(id => ticketApi.delete(id)));
+        setTickets(tickets.filter(t => !ids.includes(t.id)));
+        setSelectedTickets([]);
+      }
+    } catch (err) {
+      alert(`Bulk delete failed for some ${type}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -316,6 +357,16 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-white">Manage Users</h3>
               
               <div className="flex flex-wrap items-center gap-3">
+                {selectedUsers.length > 0 && isSuperAdmin && (
+                  <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => handleBulkDelete('users')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500/20 transition-all shadow-[0_4px_12px_rgba(244,63,94,0.1)]"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete ({selectedUsers.length})
+                  </motion.button>
+                )}
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -352,6 +403,17 @@ export default function AdminPage() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={users.length > 0 && users.every(u => selectedUsers.includes(u.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedUsers(users.map(u => u.id));
+                            else setSelectedUsers([]);
+                          }}
+                          className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                        />
+                      </th>
                       {['User', 'Email', 'Roles', 'Provider', 'Actions'].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                       ))}
@@ -372,9 +434,20 @@ export default function AdminPage() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="transition-colors group"
+                        className={`transition-colors group ${selectedUsers.includes(u.id) ? 'bg-violet-500/5' : ''}`}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                       >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedUsers.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedUsers([...selectedUsers, u.id]);
+                              else setSelectedUsers(selectedUsers.filter(id => id !== u.id));
+                            }}
+                            className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div
@@ -488,6 +561,16 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-white">Manage Facilities</h3>
               
               <div className="flex flex-wrap items-center gap-3">
+                {selectedFacilities.length > 0 && (
+                  <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => handleBulkDelete('facilities')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500/20 transition-all shadow-[0_4px_12px_rgba(244,63,94,0.1)]"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete ({selectedFacilities.length})
+                  </motion.button>
+                )}
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -526,6 +609,17 @@ export default function AdminPage() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={facilities.length > 0 && facilities.every(f => selectedFacilities.includes(f.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedFacilities(facilities.map(f => f.id));
+                            else setSelectedFacilities([]);
+                          }}
+                          className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                        />
+                      </th>
                       {['Name', 'Type', 'Status', 'Capacity', 'Actions'].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                       ))}
@@ -546,9 +640,20 @@ export default function AdminPage() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="transition-colors group"
+                        className={`transition-colors group ${selectedFacilities.includes(f.id) ? 'bg-violet-500/5' : ''}`}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                       >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedFacilities.includes(f.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedFacilities([...selectedFacilities, f.id]);
+                              else setSelectedFacilities(selectedFacilities.filter(id => id !== f.id));
+                            }}
+                            className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-4 text-sm font-semibold text-white">{f.name}</td>
                         <td className="px-4 py-4 text-xs text-slate-400 uppercase tracking-wider">{f.type.replace(/_/g, ' ')}</td>
                         <td className="px-4 py-4">
@@ -598,6 +703,16 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-white">Manage Bookings</h3>
               
               <div className="flex flex-wrap items-center gap-3">
+                {selectedBookings.length > 0 && (
+                  <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => handleBulkDelete('bookings')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500/20 transition-all shadow-[0_4px_12px_rgba(244,63,94,0.1)]"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete ({selectedBookings.length})
+                  </motion.button>
+                )}
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -644,6 +759,17 @@ export default function AdminPage() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={bookings.length > 0 && bookings.every(b => selectedBookings.includes(b.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedBookings(bookings.map(b => b.id));
+                            else setSelectedBookings([]);
+                          }}
+                          className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                        />
+                      </th>
                       {['User', 'Facility', 'Date', 'Time', 'Status', 'Actions'].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                       ))}
@@ -666,9 +792,20 @@ export default function AdminPage() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="transition-colors group"
+                        className={`transition-colors group ${selectedBookings.includes(b.id) ? 'bg-violet-500/5' : ''}`}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                       >
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedBookings.includes(b.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedBookings([...selectedBookings, b.id]);
+                              else setSelectedBookings(selectedBookings.filter(id => id !== b.id));
+                            }}
+                            className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-4 text-sm font-semibold text-white">{b.userName}</td>
                         <td className="px-4 py-4 text-sm text-slate-300">{b.facilityName}</td>
                         <td className="px-4 py-4 text-sm text-slate-400">{b.date}</td>
@@ -718,6 +855,16 @@ export default function AdminPage() {
               <h3 className="text-lg font-bold text-white">Manage Tickets</h3>
               
               <div className="flex flex-wrap items-center gap-3">
+                {selectedTickets.length > 0 && (
+                  <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => handleBulkDelete('tickets')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500/20 transition-all shadow-[0_4px_12px_rgba(244,63,94,0.1)]"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete ({selectedTickets.length})
+                  </motion.button>
+                )}
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -765,6 +912,17 @@ export default function AdminPage() {
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={tickets.length > 0 && tickets.every(t => selectedTickets.includes(t.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTickets(tickets.map(t => t.id));
+                            else setSelectedTickets([]);
+                          }}
+                          className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                        />
+                      </th>
                       {['Ticket info', 'User/Reporter', 'Date', 'Priority', 'Status', 'Actions'].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">{h}</th>
                       ))}
@@ -774,7 +932,7 @@ export default function AdminPage() {
                     {tickets
                       .filter(t => {
                         const matchesSearch = ticketSearch === '' || 
-                          t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
+                          t.title.toLowerCase().includes(ticketSearch.toLowerCase()) || 
                           t.description.toLowerCase().includes(ticketSearch.toLowerCase()) ||
                           t.id.slice(0,8).toLowerCase().includes(ticketSearch.toLowerCase());
                         
@@ -789,23 +947,34 @@ export default function AdminPage() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="transition-colors group cursor-pointer hover:bg-white/[0.02]"
+                        className={`transition-colors group cursor-pointer hover:bg-white/[0.02] ${selectedTickets.includes(t.id) ? 'bg-violet-500/5' : ''}`}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                         onClick={() => window.location.href=`/tickets/${t.id}`}
                       >
+                        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedTickets.includes(t.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedTickets([...selectedTickets, t.id]);
+                              else setSelectedTickets(selectedTickets.filter(id => id !== t.id));
+                            }}
+                            className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-4 py-4 min-w-[200px]">
                           <div className="flex items-start gap-3">
                             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
                               <TicketIcon className="w-4 h-4 text-violet-400" />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-white line-clamp-1">{t.subject}</p>
+                              <p className="text-sm font-semibold text-white line-clamp-1">{t.title}</p>
                               <p className="text-[10px] text-slate-500 font-mono mt-0.5 uppercase tracking-tighter">ID: {t.id.slice(0,8)}</p>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <p className="text-xs font-bold text-slate-300">{t.reporterName || 'Student/Staff'}</p>
+                          <p className="text-xs font-bold text-slate-300">{t.reportedByName || 'Student/Staff'}</p>
                           <p className="text-[10px] text-slate-500 truncate max-w-[120px]">{t.facilityId ? 'Building Resource' : 'Campus Issue'}</p>
                         </td>
                         <td className="px-4 py-4 text-xs text-slate-400 font-medium">
@@ -859,7 +1028,7 @@ export default function AdminPage() {
                     ))}
                     {tickets.filter(t => {
                         const matchesSearch = ticketSearch === '' || 
-                          t.subject.toLowerCase().includes(ticketSearch.toLowerCase()) || 
+                          t.title.toLowerCase().includes(ticketSearch.toLowerCase()) || 
                           t.id.toLowerCase().includes(ticketSearch.toLowerCase());
                         const matchesDate = ticketDateFilter === '' || t.createdAt.startsWith(ticketDateFilter);
                         const matchesStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;

@@ -194,4 +194,15 @@ public class BookingService {
     public List<Booking> getBookingsByFacility(String facilityId) {
         return bookingRepository.findByFacilityId(facilityId);
     }
+
+    public void deleteBooking(String id) {
+        if (!bookingRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Booking not found with id: " + id);
+        }
+        bookingRepository.deleteById(id);
+    }
+
+    public void bulkDeleteBookings(List<String> ids) {
+        bookingRepository.deleteAllById(ids);
+    }
 }

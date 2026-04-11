@@ -1,5 +1,6 @@
 package com.smartcampus.controller;
 
+import com.smartcampus.dto.ApiResponse;
 import com.smartcampus.dto.BookingRequest;
 import com.smartcampus.model.Booking;
 import com.smartcampus.model.User;
@@ -88,5 +89,19 @@ public class BookingController {
             @AuthenticationPrincipal User user) {
         String reason = request != null ? request.get("reason") : null;
         return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> deleteBooking(@PathVariable String id) {
+        bookingService.deleteBooking(id);
+        return ResponseEntity.ok(ApiResponse.success("Booking deleted successfully"));
+    }
+
+    @DeleteMapping("/bulk-delete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse> bulkDeleteBookings(@RequestBody List<String> ids) {
+        bookingService.bulkDeleteBookings(ids);
+        return ResponseEntity.ok(ApiResponse.success("Bookings deleted successfully"));
     }
 }

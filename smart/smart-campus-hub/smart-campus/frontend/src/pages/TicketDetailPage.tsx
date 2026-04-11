@@ -200,7 +200,18 @@ export default function TicketDetailPage() {
     if (!ticket) {
       return;
     }
-    setEditTicketData(ticket);
+    setEditTicketData({
+      title: ticket.title,
+      facilityId: ticket.facilityId,
+      location: ticket.location,
+      category: ticket.category,
+      description: ticket.description,
+      priority: ticket.priority,
+      contactEmail: ticket.contactEmail,
+      contactPhone: ticket.contactPhone,
+      assignedTo: ticket.assignedTo,
+      assignedToName: ticket.assignedToName,
+    });
     setEditAttachments(buildEditAttachments(ticket.attachmentUrls));
     setEditingTicket(true);
   };
@@ -633,28 +644,24 @@ export default function TicketDetailPage() {
               </div>
             </div>
             {/* Ticket Management Buttons */}
-            {(ticket.reportedBy === user?.id || isAdmin) && (
-              <div className="flex gap-2">
-                {ticket.status === 'OPEN' && (
-                  <button
-                    onClick={startEditingTicket}
-                    className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-sm"
-                    title="Edit Ticket"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                )}
-                {(ticket.status === 'OPEN' || isAdmin) && (
-                  <button
-                    onClick={handleDeleteTicket}
-                    className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 transition-all shadow-sm"
-                    title="Delete Ticket"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="flex gap-2">
+              <button
+                onClick={startEditingTicket}
+                className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-sm"
+                title="Edit Ticket"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              {(ticket.reportedBy === user?.id || isAdmin) && (ticket.status === 'OPEN' || isAdmin) && (
+                <button
+                  onClick={handleDeleteTicket}
+                  className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 transition-all shadow-sm"
+                  title="Delete Ticket"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {editingTicket ? (
@@ -675,11 +682,14 @@ export default function TicketDetailPage() {
                     value={editTicketData.category}
                     onChange={e => setEditTicketData({ ...editTicketData, category: e.target.value })}
                   >
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="IT_SUPPORT">IT Support</option>
-                    <option value="CLEANING">Cleaning</option>
-                    <option value="SECURITY">Security</option>
-                    <option value="OTHER">Other</option>
+                    <option value="Electrical">Electrical</option>
+                    <option value="Plumbing">Plumbing</option>
+                    <option value="HVAC">HVAC</option>
+                    <option value="IT Equipment">IT Equipment</option>
+                    <option value="Furniture">Furniture</option>
+                    <option value="Cleaning">Cleaning</option>
+                    <option value="Safety">Safety</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
               </div>

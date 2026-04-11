@@ -31,7 +31,7 @@ public class Ticket {
     private Priority priority;
 
     @Enumerated(EnumType.STRING)
-    private TicketStatus status;
+    private TicketStatus status = TicketStatus.OPEN;
 
     private String reportedBy;
     private String reportedByName;
