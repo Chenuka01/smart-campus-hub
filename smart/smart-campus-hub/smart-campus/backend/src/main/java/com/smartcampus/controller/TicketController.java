@@ -33,7 +33,7 @@ public class TicketController {
         this.fileStorageService = fileStorageService;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping
     public ResponseEntity<Ticket> createTicket(
             @Valid @RequestPart("ticket") TicketRequest request,
             @RequestPart(value = "files", required = false) List<MultipartFile> files,
@@ -89,12 +89,52 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketById(id, user));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Ticket> updateTicket(
             @PathVariable String id,
             @Valid @RequestBody TicketRequest request,
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
+    }
+
+    @RequestMapping(
+            value = "/{id}/with-files",
+            method = {RequestMethod.PUT, RequestMethod.POST},
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<Ticket> updateTicketWithFiles(
+            @PathVariable String id,
+            @Valid @RequestPart("ticket") TicketRequest request,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            @AuthenticationPrincipal User user) throws IOException {
+
+        Ticket existingTicket = ticketService.getTicketById(id, user);
+        List<String> retainedAttachmentUrls = request.getRetainedAttachmentUrls() != null
+                ? new ArrayList<>(request.getRetainedAttachmentUrls())
+                : new ArrayList<>(existingTicket.getAttachmentUrls() != null ? existingTicket.getAttachmentUrls() : List.of());
+
+        List<String> attachmentUrls = new ArrayList<>(retainedAttachmentUrls);
+        if (files != null) {
+            if (attachmentUrls.size() + files.size() > 3) {
+                throw new BadRequestException("You can upload up to 3 image attachments per ticket");
+            }
+            for (MultipartFile file : files) {
+                attachmentUrls.add(fileStorageService.storeFile(file));
+            }
+        }
+
+        Ticket updatedTicket = ticketService.updateTicket(id, request, user, attachmentUrls);
+
+        List<String> existingUrls = existingTicket.getAttachmentUrls() != null
+                ? existingTicket.getAttachmentUrls()
+                : List.of();
+        for (String url : existingUrls) {
+            if (!attachmentUrls.contains(url)) {
+                fileStorageService.deleteFile(url);
+            }
+        }
+
+        return ResponseEntity.ok(updatedTicket);
     }
 
     @PutMapping("/{id}/assign")
