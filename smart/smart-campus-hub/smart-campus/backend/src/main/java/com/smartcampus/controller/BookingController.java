@@ -79,6 +79,6 @@ public class BookingController {
             @RequestBody(required = false) Map<String, String> request,
             @AuthenticationPrincipal User user) {
         String reason = request != null ? request.get("reason") : null;
-        return ResponseEntity.ok(bookingService.cancelBooking(id, user.getId(), reason));
+        return ResponseEntity.ok(bookingService.cancelBooking(id, user, reason));
     }
 }
