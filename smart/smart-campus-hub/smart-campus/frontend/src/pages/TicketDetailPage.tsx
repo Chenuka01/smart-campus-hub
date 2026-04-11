@@ -117,6 +117,9 @@ export default function TicketDetailPage() {
   const [editContent, setEditContent] = useState('');
   const [sending, setSending] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<{ type: 'RESOLVE' | 'REJECT' | 'CLOSE' | 'START', visible: boolean }>({ type: 'RESOLVE', visible: false });
+  const [statusNote, setStatusNote] = useState('');
   const [editTicketData, setEditTicketData] = useState<Partial<Ticket>>({});
   const [editAttachments, setEditAttachments] = useState<EditAttachmentItem[]>([]);
   const [previewModal, setPreviewModal] = useState<{ index: number; mode: 'preview' | 'annotate' } | null>(null);
@@ -517,66 +520,79 @@ export default function TicketDetailPage() {
     }
   };
 
-  const saveAnnotation = async () => {
-    const previewIndex = previewModal?.index;
-    const image = modalImageRef.current;
-    const annotationCanvas = annotationCanvasRef.current;
-    if (previewIndex == null || !image || !annotationCanvas) {
-      return;
-    }
-
-    const currentItem = editAttachments[previewIndex];
-    if (!currentItem) {
-      return;
-    }
-
-    let tempSourceToRevoke: string | null = null;
-
+  const handleStatusTransition = async (newStatus: string) => {
+    if (!id || !ticket) return;
+    setUpdatingStatus(true);
     try {
-      const { source, revoke } = await getExportImageSource(currentItem);
-      tempSourceToRevoke = revoke ? source : null;
-      const exportImage = await loadImageElement(source);
-
-      const blob = await exportAnnotatedImage(exportImage, annotationCanvas);
-      if (!blob) {
-        throw new Error('Failed to prepare annotation export');
-      }
-
-      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
-        alert(`Annotated image is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
-        return;
-      }
-
-      const fileName = getAnnotatedFileName(currentItem.name || `annotated-evidence-${previewIndex + 1}.jpg`);
-      const fileType = ANNOTATED_IMAGE_TYPE;
-        const nextFile = new File([blob], fileName, { type: fileType });
-        const nextPreviewUrl = URL.createObjectURL(blob);
-
-        setEditAttachments(prev => prev.map((item, index) => {
-          if (index !== previewIndex) {
-            return item;
-          }
-          if (item.revokeOnCleanup) {
-            URL.revokeObjectURL(item.previewUrl);
-          }
-          return {
-            ...item,
-            previewUrl: nextPreviewUrl,
-            file: nextFile,
-            existingUrl: undefined,
-            revokeOnCleanup: true,
-          };
-        }));
-        setAnnotationPreview(nextPreviewUrl);
-        setPreviewModal({ index: previewIndex, mode: 'preview' });
-        setIsDrawing(false);
-    } catch {
-      alert('Failed to save annotation');
+      await ticketApi.updateStatus(id, 
+        newStatus,
+        newStatus === 'RESOLVED' ? statusNote : undefined,
+        newStatus === 'REJECTED' ? statusNote : undefined
+      );
+      const res = await ticketApi.getById(id);
+      setTicket(res.data);
+      setStatusDialog({ ...statusDialog, visible: false });
+      setStatusNote('');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to update status'));
     } finally {
-      if (tempSourceToRevoke) {
-        URL.revokeObjectURL(tempSourceToRevoke);
+      setUpdatingStatus(false);
+    }
+  };
+
+  const getStatusActionButtons = () => {
+    if (!ticket || !user) return null;
+    const { status, assignedTo } = ticket;
+    const isAssigned = user.id === assignedTo;
+    const isAdminUser = isAdmin || user.roles.some(r => r === 'SUPER_ADMIN' || r === 'ADMIN');
+
+    const actions = [];
+
+    if (status === 'OPEN') {
+      if (isAdminUser || isAssigned) {
+        actions.push(
+          <NeuButton key="start" variant="primary" size="sm" onClick={() => handleStatusTransition('IN_PROGRESS')}>
+            Start Progress
+          </NeuButton>
+        );
+      }
+      if (isAdminUser) {
+        actions.push(
+          <NeuButton key="reject" variant="error" size="sm" onClick={() => setStatusDialog({ type: 'REJECT', visible: true })}>
+            Reject Ticket
+          </NeuButton>
+        );
+      }
+    } else if (status === 'IN_PROGRESS') {
+      if (isAdminUser || isAssigned) {
+        actions.push(
+          <NeuButton key="resolve" variant="success" size="sm" onClick={() => setStatusDialog({ type: 'RESOLVE', visible: true })}>
+            Mark as Resolved
+          </NeuButton>
+        );
+      }
+      if (isAdminUser) {
+        actions.push(
+          <NeuButton key="reject" variant="error" size="sm" onClick={() => setStatusDialog({ type: 'REJECT', visible: true })}>
+            Reject Ticket
+          </NeuButton>
+        );
+      }
+    } else if (status === 'RESOLVED') {
+      if (isAdminUser) {
+        actions.push(
+          <NeuButton key="close" variant="primary" size="sm" onClick={() => handleStatusTransition('CLOSED')}>
+            Close Ticket
+          </NeuButton>
+        );
       }
     }
+
+    return actions.length > 0 ? (
+      <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5">
+        {actions}
+      </div>
+    ) : null;
   };
 
   if (loading || !ticket) return (
@@ -939,10 +955,47 @@ export default function TicketDetailPage() {
                   <p className="text-sm text-rose-300">{ticket.rejectionReason}</p>
                 </div>
               )}
+              {getStatusActionButtons()}
             </div>
           )}
         </LiquidGlassCard>
       </motion.div>
+
+      {statusDialog.visible && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <LiquidGlassCard depth={3} className="w-full max-w-md">
+            <h2 className="text-lg font-bold text-white mb-4">
+              {statusDialog.type === 'RESOLVE' ? 'Resolve Ticket' : 'Reject Ticket'}
+            </h2>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase">
+                  {statusDialog.type === 'RESOLVE' ? 'Resolution Notes (Required)' : 'Rejection Reason (Required)'}
+                </label>
+                <textarea
+                  className="glass-input w-full px-4 py-3 rounded-xl text-sm min-h-[120px]"
+                  placeholder={statusDialog.type === 'RESOLVE' ? 'How was this issue fixed?' : 'Why is this ticket being rejected?'}
+                  value={statusNote}
+                  onChange={e => setStatusNote(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <NeuButton variant="ghost" onClick={() => { setStatusDialog({ ...statusDialog, visible: false }); setStatusNote(''); }}>
+                  Cancel
+                </NeuButton>
+                <NeuButton 
+                  variant={statusDialog.type === 'RESOLVE' ? 'success' : 'error'} 
+                  disabled={!statusNote.trim() || updatingStatus}
+                  loading={updatingStatus}
+                  onClick={() => handleStatusTransition(statusDialog.type === 'RESOLVE' ? 'RESOLVED' : 'REJECTED')}
+                >
+                  Confirm {statusDialog.type === 'RESOLVE' ? 'Resolution' : 'Rejection'}
+                </NeuButton>
+              </div>
+            </div>
+          </LiquidGlassCard>
+        </div>
+      )}
 
       {/* Comments Section */}
       <motion.div variants={itemVariants}>

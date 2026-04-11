@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [ticketAssignModal, setTicketAssignModal] = useState<string | null>(null);
 
   const [actionModal, setActionModal] = useState<{ id: string; action: string } | null>(null);
   const [reason, setReason] = useState('');
@@ -133,7 +134,7 @@ export default function AdminPage() {
     try {
       // Optimistically update the UI to show the assignment immediately
       setTickets(prev => prev.map(t => 
-        t.id === id ? { ...t, assignedTo: techId, assignedToName: techName, status: 'IN_PROGRESS' } : t
+        t.id === id ? { ...t, assignedTo: techId, assignedToName: techName } : t
       ));
       setTicketAssignModal(null);
       
@@ -141,7 +142,8 @@ export default function AdminPage() {
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to assign ticket');
       // Revert if it fails
-      refreshData('tickets');
+      const res = await ticketApi.getAll();
+      setTickets(res.data);
     }
   };
 
@@ -1004,6 +1006,13 @@ export default function AdminPage() {
                         <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                              <button 
+                                onClick={() => setTicketAssignModal(t.id)}
+                                className="p-2 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-colors"
+                                title="Assign Staff"
+                             >
+                                <Users className="w-4 h-4" />
+                             </button>
+                             <button 
                                 onClick={() => window.location.href=`/tickets/${t.id}`}
                                 className="p-2 rounded-lg text-blue-400 hover:bg-blue-400/10 transition-colors"
                                 title="Manage Ticket"
@@ -1280,6 +1289,51 @@ export default function AdminPage() {
                   }
                 </NeuButton>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ticket Assignment Modal */}
+      <AnimatePresence>
+        {ticketAssignModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+            onClick={() => setTicketAssignModal(null)}>
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md rounded-3xl p-6"
+              style={{ background: 'rgba(20,10,50,0.95)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                Assign Staff Member
+              </h3>
+              <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {users.filter(u => (u.roles || []).some(r => ['TECHNICIAN', 'ADMIN', 'MANAGER'].includes(r))).map(staff => (
+                  <button
+                    key={staff.id}
+                    onClick={() => handleAssignTicket(ticketAssignModal, staff.id, staff.name)}
+                    className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-amber-400/30 hover:bg-amber-400/5 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-white text-xs font-bold">
+                        {staff.name.charAt(0)}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">{staff.name}</p>
+                        <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase">{(staff.roles || []).join(' • ')}</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-amber-400 transform group-hover:translate-x-1 transition-all" />
+                  </button>
+                ))}
+                {users.filter(u => (u.roles || []).some(r => ['TECHNICIAN', 'ADMIN', 'MANAGER'].includes(r))).length === 0 && (
+                  <p className="text-center py-8 text-slate-500 text-sm italic">No staff members available.</p>
+                )}
+              </div>
+              <NeuButton onClick={() => setTicketAssignModal(null)} variant="ghost" fullWidth>Cancel</NeuButton>
             </motion.div>
           </motion.div>
         )}

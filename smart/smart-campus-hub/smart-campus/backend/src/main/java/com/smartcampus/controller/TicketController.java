@@ -141,9 +141,10 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<Ticket> assignTicket(
             @PathVariable String id,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, String> request,
+            @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(ticketService.assignTicket(
-                id, request.get("technicianId"), request.get("technicianName")));
+                id, request.get("technicianId"), request.get("technicianName"), user));
     }
 
     @PutMapping("/{id}/status")

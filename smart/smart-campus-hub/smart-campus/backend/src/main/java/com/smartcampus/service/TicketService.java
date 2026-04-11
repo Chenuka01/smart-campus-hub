@@ -20,14 +20,17 @@ public class TicketService {
     private final NotificationService notificationService;
     private final TicketClassificationService ticketClassificationService;
     private final TechnicianAutoAssignmentService technicianAutoAssignmentService;
+    private final com.smartcampus.repository.TicketAuditLogRepository ticketAuditLogRepository;
 
     public TicketService(TicketRepository ticketRepository, NotificationService notificationService,
                          TicketClassificationService ticketClassificationService,
-                         TechnicianAutoAssignmentService technicianAutoAssignmentService) {
+                         TechnicianAutoAssignmentService technicianAutoAssignmentService,
+                         com.smartcampus.repository.TicketAuditLogRepository ticketAuditLogRepository) {
         this.ticketRepository = ticketRepository;
         this.notificationService = notificationService;
         this.ticketClassificationService = ticketClassificationService;
         this.technicianAutoAssignmentService = technicianAutoAssignmentService;
+        this.ticketAuditLogRepository = ticketAuditLogRepository;
     }
 
     public Ticket createTicket(TicketRequest request, User user, List<String> attachmentUrls) {
@@ -62,20 +65,43 @@ public class TicketService {
         }
 
         Ticket savedTicket = ticketRepository.save(ticket);
+        
+        // Audit log for creation
+        com.smartcampus.model.TicketAuditLog log = new com.smartcampus.model.TicketAuditLog();
+        log.setTicketId(savedTicket.getId());
+        log.setChangedByUserId(user.getId());
+        log.setChangedByUserName(user.getName());
+        log.setOldStatus(null);
+        log.setNewStatus(Ticket.TicketStatus.OPEN);
+        log.setTimestamp(now);
+        log.setNote("Ticket created");
+        ticketAuditLogRepository.save(log);
+
         if (assignedTechnician != null || ticket.getAssignedTo() != null) {
             sendAutoAssignmentNotifications(savedTicket, assignedTechnician);
         }
         return applySlaState(savedTicket);
     }
 
-    public Ticket assignTicket(String ticketId, String technicianId, String technicianName) {
+    public Ticket assignTicket(String ticketId, String technicianId, String technicianName, User currentUser) {
         Ticket ticket = getTicketById(ticketId);
+        String oldAssignedTo = ticket.getAssignedTo();
         ticket.setAssignedTo(technicianId);
         ticket.setAssignedToName(technicianName);
-        // Do not change status to IN_PROGRESS automatically; keep it OPEN until technician starts work
         ticket.setUpdatedAt(LocalDateTime.now());
         applySlaState(ticket);
         Ticket saved = ticketRepository.save(ticket);
+
+        // Audit log for assignment
+        com.smartcampus.model.TicketAuditLog log = new com.smartcampus.model.TicketAuditLog();
+        log.setTicketId(saved.getId());
+        log.setChangedByUserId(currentUser.getId());
+        log.setChangedByUserName(currentUser.getName());
+        log.setOldStatus(saved.getStatus());
+        log.setNewStatus(saved.getStatus());
+        log.setTimestamp(LocalDateTime.now());
+        log.setNote("Assigned to " + technicianName + (oldAssignedTo != null ? " (was " + ticket.getAssignedToName() + ")" : ""));
+        ticketAuditLogRepository.save(log);
 
         notificationService.createNotification(
                 ticket.getReportedBy(),
@@ -99,51 +125,98 @@ public class TicketService {
         Ticket.TicketStatus newStatus = Ticket.TicketStatus.valueOf(status);
         Ticket.TicketStatus oldStatus = ticket.getStatus();
 
-        // 1. Same status is always allowed (no-op)
         if (newStatus == oldStatus) {
             return ticket;
         }
 
-        // 2. Allow transitions from REJECTED back to OPEN if Admin wants to re-process (Optional but helpful)
-        if (newStatus == Ticket.TicketStatus.OPEN && oldStatus == Ticket.TicketStatus.REJECTED) {
-            ticket.setRejectionReason(null);
+        // Rule: Do NOT allow status changes after CLOSED or REJECTED
+        if (oldStatus == Ticket.TicketStatus.CLOSED || oldStatus == Ticket.TicketStatus.REJECTED) {
+            throw new RuntimeException("Cannot change status of a " + oldStatus + " ticket.");
         }
 
-        // 3. Main Workflow Validation: OPEN -> IN_PROGRESS -> RESOLVED -> CLOSED
-        if (newStatus == Ticket.TicketStatus.IN_PROGRESS && (oldStatus != Ticket.TicketStatus.OPEN)) {
-            throw new RuntimeException("Can only move to IN_PROGRESS from OPEN (currently: " + oldStatus + ")");
-        }
-        if (newStatus == Ticket.TicketStatus.RESOLVED && oldStatus != Ticket.TicketStatus.IN_PROGRESS) {
-            throw new RuntimeException("Can only move to RESOLVED from IN_PROGRESS (currently: " + oldStatus + ")");
-        }
-        if (newStatus == Ticket.TicketStatus.CLOSED && (oldStatus != Ticket.TicketStatus.RESOLVED && oldStatus != Ticket.TicketStatus.OPEN && oldStatus != Ticket.TicketStatus.IN_PROGRESS && oldStatus != Ticket.TicketStatus.REJECTED)) {
-            // Allow Admin to close from any state, but user usually resolves first
-            throw new RuntimeException("Invalid closing state (currently: " + oldStatus + ")");
+        boolean isAdmin = user.getRoles().stream().anyMatch(r -> r == User.Role.ADMIN || r == User.Role.SUPER_ADMIN);
+        boolean isAssigned = user.getId().equals(ticket.getAssignedTo());
+
+        // Rule: Only Admin or assigned staff can start working on the ticket (OPEN -> IN_PROGRESS)
+        if (newStatus == Ticket.TicketStatus.IN_PROGRESS) {
+            if (oldStatus != Ticket.TicketStatus.OPEN) {
+                throw new RuntimeException("Can only move to IN_PROGRESS from OPEN.");
+            }
+            if (!isAdmin && !isAssigned) {
+                throw new RuntimeException("Only Admin or assigned staff can start progress.");
+            }
         }
 
-        // 4. Rejected or Cancelled: ONLY allowed for ADMIN or SUPER_ADMIN
-        boolean isPrivileged = user.getRoles().stream().anyMatch(r -> r == User.Role.ADMIN || r == User.Role.SUPER_ADMIN);
-        if (newStatus == Ticket.TicketStatus.REJECTED && !isPrivileged) {
-            throw new RuntimeException("Only Administrators can reject tickets.");
+        // Rule: Only assigned technician/staff can mark as resolved (IN_PROGRESS -> RESOLVED)
+        if (newStatus == Ticket.TicketStatus.RESOLVED) {
+            if (oldStatus != Ticket.TicketStatus.IN_PROGRESS) {
+                throw new RuntimeException("Can only move to RESOLVED from IN_PROGRESS.");
+            }
+            if (!isAdmin && !isAssigned) {
+                throw new RuntimeException("Only assigned technician or Admin can resolve.");
+            }
+            if (resolutionNotes == null || resolutionNotes.trim().isEmpty()) {
+                throw new RuntimeException("Resolution notes are required.");
+            }
         }
 
+        // Rule: Only Admin (or user optionally - here strict) can close (RESOLVED -> CLOSED)
+        if (newStatus == Ticket.TicketStatus.CLOSED) {
+            if (oldStatus != Ticket.TicketStatus.RESOLVED) {
+                throw new RuntimeException("Can only move to CLOSED from RESOLVED.");
+            }
+            if (!isAdmin) {
+                throw new RuntimeException("Only Administrators can close tickets.");
+            }
+        }
+
+        // Rule: Admin can mark as REJECTED ONLY when status is OPEN or IN_PROGRESS
+        if (newStatus == Ticket.TicketStatus.REJECTED) {
+            if (oldStatus != Ticket.TicketStatus.OPEN && oldStatus != Ticket.TicketStatus.IN_PROGRESS) {
+                throw new RuntimeException("Can only reject tickets from OPEN or IN_PROGRESS status.");
+            }
+            if (!isAdmin) {
+                throw new RuntimeException("Only Administrators can reject tickets.");
+            }
+            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
+                throw new RuntimeException("Rejection reason is required.");
+            }
+        }
+
+        // Validation against skipping steps (already handled by specific transitions above)
+        
         ticket.setStatus(newStatus);
         ticket.setUpdatedAt(LocalDateTime.now());
 
+        String auditNote = "";
         if (newStatus == Ticket.TicketStatus.RESOLVED) {
             ticket.setResolutionNotes(resolutionNotes);
             ticket.setResolvedAt(LocalDateTime.now());
+            auditNote = "Resolution: " + resolutionNotes;
         } else if (newStatus == Ticket.TicketStatus.CLOSED) {
             ticket.setClosedAt(LocalDateTime.now());
+            auditNote = "Ticket closed and confirmed.";
         } else if (newStatus == Ticket.TicketStatus.REJECTED) {
             ticket.setRejectionReason(rejectionReason);
+            auditNote = "Rejection Reason: " + rejectionReason;
         } else if (newStatus == Ticket.TicketStatus.IN_PROGRESS) {
-            // Clear any previous rejection reason if moved back to progress
             ticket.setRejectionReason(null);
+            auditNote = "Work started.";
         }
 
         applySlaState(ticket);
         Ticket saved = ticketRepository.save(ticket);
+
+        // Save Audit Log
+        com.smartcampus.model.TicketAuditLog auditLog = new com.smartcampus.model.TicketAuditLog();
+        auditLog.setTicketId(saved.getId());
+        auditLog.setChangedByUserId(user.getId());
+        auditLog.setChangedByUserName(user.getName());
+        auditLog.setOldStatus(oldStatus);
+        auditLog.setNewStatus(newStatus);
+        auditLog.setTimestamp(LocalDateTime.now());
+        auditLog.setNote(auditNote);
+        ticketAuditLogRepository.save(auditLog);
 
         Notification.NotificationType notifType;
         String message;
