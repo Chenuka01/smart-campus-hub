@@ -3,6 +3,8 @@ package com.smartcampus.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class TicketRequest {
     @NotBlank(message = "Title is required")
@@ -25,6 +27,7 @@ public class TicketRequest {
 
     private String assignedTo;
     private String assignedToName;
+    private List<String> retainedAttachmentUrls;
 
     public String getTitle() { return title; }
     public String getFacilityId() { return facilityId; }
@@ -36,6 +39,7 @@ public class TicketRequest {
     public String getContactPhone() { return contactPhone; }
     public String getAssignedTo() { return assignedTo; }
     public String getAssignedToName() { return assignedToName; }
+    public List<String> getRetainedAttachmentUrls() { return retainedAttachmentUrls; }
 
     public void setTitle(String title) { this.title = title; }
     public void setFacilityId(String facilityId) { this.facilityId = facilityId; }
@@ -47,4 +51,5 @@ public class TicketRequest {
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
     public void setAssignedTo(String assignedTo) { this.assignedTo = assignedTo; }
     public void setAssignedToName(String assignedToName) { this.assignedToName = assignedToName; }
+    public void setRetainedAttachmentUrls(List<String> retainedAttachmentUrls) { this.retainedAttachmentUrls = retainedAttachmentUrls; }
 }

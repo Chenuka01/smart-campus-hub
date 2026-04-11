@@ -9,6 +9,7 @@ import com.smartcampus.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -217,6 +218,10 @@ public class TicketService {
     }
 
     public Ticket updateTicket(String ticketId, TicketRequest request, User user) {
+        return updateTicket(ticketId, request, user, null);
+    }
+
+    public Ticket updateTicket(String ticketId, TicketRequest request, User user, List<String> attachmentUrls) {
         Ticket ticket = getTicketById(ticketId);
 
         // Security check: Only reporter or staff can update.
@@ -242,6 +247,9 @@ public class TicketService {
         ticket.setLocation(request.getLocation());
         ticket.setContactEmail(request.getContactEmail());
         ticket.setContactPhone(request.getContactPhone());
+        if (attachmentUrls != null) {
+            ticket.setAttachmentUrls(new ArrayList<>(attachmentUrls));
+        }
         ticket.setUpdatedAt(LocalDateTime.now());
         applySlaPolicy(ticket, ticket.getCreatedAt() != null ? ticket.getCreatedAt() : LocalDateTime.now());
         applySlaState(ticket);

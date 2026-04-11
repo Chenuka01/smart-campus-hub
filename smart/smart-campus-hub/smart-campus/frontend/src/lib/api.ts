@@ -103,6 +103,10 @@ export const ticketApi = {
     api.get('/tickets', { params: status ? { status } : {} }),
   getById: (id: string) => api.get(`/tickets/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.put(`/tickets/${id}`, data),
+  updateWithFiles: (id: string, formData: FormData) =>
+    api.put(`/tickets/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   assign: (id: string, technicianId: string, technicianName: string) =>
     api.put(`/tickets/${id}/assign`, { technicianId, technicianName }),
   updateStatus: (id: string, status: string, resolutionNotes?: string, rejectionReason?: string) =>
@@ -144,5 +148,4 @@ export const notificationApi = {
 };
 
 export default api;
-
 

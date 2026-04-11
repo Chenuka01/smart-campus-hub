@@ -97,6 +97,42 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.updateTicket(id, request, user));
     }
 
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Ticket> updateTicketWithFiles(
+            @PathVariable String id,
+            @Valid @RequestPart("ticket") TicketRequest request,
+            @RequestPart(value = "files", required = false) List<MultipartFile> files,
+            @AuthenticationPrincipal User user) throws IOException {
+
+        Ticket existingTicket = ticketService.getTicketById(id, user);
+        List<String> retainedAttachmentUrls = request.getRetainedAttachmentUrls() != null
+                ? new ArrayList<>(request.getRetainedAttachmentUrls())
+                : new ArrayList<>(existingTicket.getAttachmentUrls() != null ? existingTicket.getAttachmentUrls() : List.of());
+
+        List<String> attachmentUrls = new ArrayList<>(retainedAttachmentUrls);
+        if (files != null) {
+            if (attachmentUrls.size() + files.size() > 3) {
+                throw new BadRequestException("You can upload up to 3 image attachments per ticket");
+            }
+            for (MultipartFile file : files) {
+                attachmentUrls.add(fileStorageService.storeFile(file));
+            }
+        }
+
+        Ticket updatedTicket = ticketService.updateTicket(id, request, user, attachmentUrls);
+
+        List<String> existingUrls = existingTicket.getAttachmentUrls() != null
+                ? existingTicket.getAttachmentUrls()
+                : List.of();
+        for (String url : existingUrls) {
+            if (!attachmentUrls.contains(url)) {
+                fileStorageService.deleteFile(url);
+            }
+        }
+
+        return ResponseEntity.ok(updatedTicket);
+    }
+
     @PutMapping("/{id}/assign")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<Ticket> assignTicket(

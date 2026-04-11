@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi, commentApi, API_BASE_URL } from '@/lib/api';
 import type { Ticket, Comment } from '@/lib/types';
-import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Activity, MessageSquare, Send, Edit2, Trash2, Clock, User, MapPin, Mail, Phone, Image, Upload, X, Eye, Pencil, RotateCcw, Save } from 'lucide-react';
 import LiquidGlassCard from '@/components/LiquidGlassCard';
 import NeuButton from '@/components/NeuButton';
 import { containerVariants, itemVariants, scrollRevealVariants } from '@/lib/animations';
@@ -31,9 +31,22 @@ const roleColors: Record<string, { bg: string; border: string; text: string }> =
   USER: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.25)', text: '#60a5fa' },
 };
 
+type EditAttachmentItem = {
+  id: string;
+  name: string;
+  previewUrl: string;
+  existingUrl?: string;
+  file?: File;
+  revokeOnCleanup: boolean;
+};
+
 export default function TicketDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const editAttachmentsRef = useRef<EditAttachmentItem[]>([]);
+  const annotationCanvasRef = useRef<HTMLCanvasElement>(null);
+  const modalImageRef = useRef<HTMLImageElement>(null);
   const { user, isAdmin } = useAuth();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -44,6 +57,12 @@ export default function TicketDetailPage() {
   const [sending, setSending] = useState(false);
   const [editingTicket, setEditingTicket] = useState(false);
   const [editTicketData, setEditTicketData] = useState<Partial<Ticket>>({});
+  const [editAttachments, setEditAttachments] = useState<EditAttachmentItem[]>([]);
+  const [previewModal, setPreviewModal] = useState<{ index: number; mode: 'preview' | 'annotate' } | null>(null);
+  const [brushColor, setBrushColor] = useState('#ef4444');
+  const [brushSize, setBrushSize] = useState(4);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [annotationPreview, setAnnotationPreview] = useState('');
 
   useEffect(() => {
     if (id) {
@@ -53,13 +72,118 @@ export default function TicketDetailPage() {
     }
   }, [id]);
 
+  useEffect(() => {
+    editAttachmentsRef.current = editAttachments;
+  }, [editAttachments]);
+
+  useEffect(() => {
+    return () => {
+      editAttachmentsRef.current.forEach(item => {
+        if (item.revokeOnCleanup) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!previewModal || previewModal.mode !== 'annotate') {
+      setIsDrawing(false);
+      return;
+    }
+
+    const image = modalImageRef.current;
+    const canvas = annotationCanvasRef.current;
+    if (!image || !canvas) {
+      return;
+    }
+
+    const syncCanvas = () => {
+      const rect = image.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+      }
+      setAnnotationPreview(editAttachments[previewModal.index]?.previewUrl || '');
+    };
+
+    if (image.complete) {
+      syncCanvas();
+    } else {
+      image.onload = syncCanvas;
+    }
+
+    window.addEventListener('resize', syncCanvas);
+    return () => {
+      window.removeEventListener('resize', syncCanvas);
+      image.onload = null;
+    };
+  }, [previewModal, editAttachments]);
+
+  const buildEditAttachments = (attachmentUrls: string[] = []): EditAttachmentItem[] =>
+    attachmentUrls.map((url, index) => ({
+      id: `existing-${index}-${url}`,
+      name: `Evidence ${index + 1}`,
+      previewUrl: `${API_BASE_URL}${url}`,
+      existingUrl: url,
+      revokeOnCleanup: false,
+    }));
+
+  const startEditingTicket = () => {
+    if (!ticket) {
+      return;
+    }
+    setEditTicketData(ticket);
+    setEditAttachments(buildEditAttachments(ticket.attachmentUrls));
+    setEditingTicket(true);
+  };
+
+  const stopEditingTicket = () => {
+    editAttachments.forEach(item => {
+      if (item.revokeOnCleanup) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+    setEditingTicket(false);
+    setPreviewModal(null);
+    setEditAttachments([]);
+    setAnnotationPreview('');
+    setIsDrawing(false);
+  };
+
   const handleEditTicket = async () => {
     if (!id || !editTicketData) return;
     try {
-      await ticketApi.update(id, editTicketData);
+      const ticketPayload = {
+        ...editTicketData,
+        retainedAttachmentUrls: editAttachments
+          .filter(item => item.existingUrl && !item.file)
+          .map(item => item.existingUrl),
+      };
+
+      const formData = new FormData();
+      const ticketFile = new File(
+        [JSON.stringify(ticketPayload)],
+        'ticket.json',
+        { type: 'application/json' }
+      );
+      formData.append('ticket', ticketFile);
+      editAttachments
+        .filter(item => item.file)
+        .forEach((item, index) => {
+          formData.append('files', item.file!, item.file?.name || `edited-evidence-${index + 1}.png`);
+        });
+
+      await ticketApi.updateWithFiles(id, formData);
       const res = await ticketApi.getById(id);
       setTicket(res.data);
-      setEditingTicket(false);
+      stopEditingTicket();
     } catch { alert('Failed to update ticket'); }
   };
 
@@ -96,6 +220,224 @@ export default function TicketDetailPage() {
       await commentApi.delete(commentId);
       setComments(comments.filter(c => c.id !== commentId));
     } catch { alert('Failed to delete comment'); }
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 3 - editAttachments.length;
+    const toAdd = files.slice(0, remaining).map((file, index) => ({
+      id: `new-${Date.now()}-${index}`,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      file,
+      revokeOnCleanup: true,
+    }));
+    setEditAttachments(prev => [...prev, ...toAdd]);
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = '';
+    }
+  };
+
+  const removeEditAttachment = (index: number) => {
+    setEditAttachments(prev => {
+      const target = prev[index];
+      if (target?.revokeOnCleanup) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+    if (previewModal?.index === index) {
+      setPreviewModal(null);
+    }
+  };
+
+  const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = annotationCanvasRef.current;
+    if (!canvas) {
+      return null;
+    }
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
+
+  const refreshAnnotationPreview = () => {
+    const image = modalImageRef.current;
+    const annotationCanvas = annotationCanvasRef.current;
+    const previewIndex = previewModal?.index;
+    if (!image || !annotationCanvas || previewIndex == null) {
+      return;
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = image.naturalWidth || image.width;
+    exportCanvas.height = image.naturalHeight || image.height;
+    const exportContext = exportCanvas.getContext('2d');
+    if (!exportContext || exportCanvas.width === 0 || exportCanvas.height === 0) {
+      return;
+    }
+
+    exportContext.drawImage(image, 0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    try {
+      setAnnotationPreview(exportCanvas.toDataURL(editAttachments[previewIndex]?.file?.type || 'image/png'));
+    } catch {
+      setAnnotationPreview(editAttachments[previewIndex]?.previewUrl || '');
+    }
+  };
+
+  const loadImageElement = (source: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const nextImage = new window.Image();
+    nextImage.onload = () => resolve(nextImage);
+    nextImage.onerror = () => reject(new Error('Failed to load image for annotation export'));
+    nextImage.src = source;
+  });
+
+  const getExportImageSource = async (item: EditAttachmentItem) => {
+    if (item.file || !item.existingUrl) {
+      return { source: item.previewUrl, revoke: false };
+    }
+
+    const response = await fetch(item.previewUrl, { credentials: 'include' });
+    if (!response.ok) {
+      throw new Error('Failed to load existing evidence image');
+    }
+
+    const blob = await response.blob();
+    return {
+      source: URL.createObjectURL(blob),
+      revoke: true,
+    };
+  };
+
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = annotationCanvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    context.strokeStyle = brushColor;
+    context.lineWidth = brushSize;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    setIsDrawing(true);
+  };
+
+  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) {
+      return;
+    }
+    const canvas = annotationCanvasRef.current;
+    const point = getCanvasPoint(event);
+    if (!canvas || !point) {
+      return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    context.strokeStyle = brushColor;
+    context.lineWidth = brushSize;
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    refreshAnnotationPreview();
+  };
+
+  const stopDrawing = () => {
+    if (!isDrawing) {
+      return;
+    }
+    const context = annotationCanvasRef.current?.getContext('2d');
+    context?.closePath();
+    setIsDrawing(false);
+    refreshAnnotationPreview();
+  };
+
+  const resetAnnotation = () => {
+    const canvas = annotationCanvasRef.current;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) {
+      return;
+    }
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (previewModal) {
+      setAnnotationPreview(editAttachments[previewModal.index]?.previewUrl || '');
+    }
+  };
+
+  const saveAnnotation = async () => {
+    const previewIndex = previewModal?.index;
+    const image = modalImageRef.current;
+    const annotationCanvas = annotationCanvasRef.current;
+    if (previewIndex == null || !image || !annotationCanvas) {
+      return;
+    }
+
+    const currentItem = editAttachments[previewIndex];
+    if (!currentItem) {
+      return;
+    }
+
+    let tempSourceToRevoke: string | null = null;
+
+    try {
+      const { source, revoke } = await getExportImageSource(currentItem);
+      tempSourceToRevoke = revoke ? source : null;
+      const exportImage = await loadImageElement(source);
+
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = exportImage.naturalWidth || image.naturalWidth || image.width;
+      exportCanvas.height = exportImage.naturalHeight || image.naturalHeight || image.height;
+      const exportContext = exportCanvas.getContext('2d');
+      if (!exportContext || exportCanvas.width === 0 || exportCanvas.height === 0) {
+        throw new Error('Failed to prepare annotation export');
+      }
+
+      exportContext.drawImage(exportImage, 0, 0, exportCanvas.width, exportCanvas.height);
+      exportContext.drawImage(annotationCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+
+      exportCanvas.toBlob(blob => {
+        if (!blob) {
+          alert('Failed to save annotation');
+          return;
+        }
+        const fileName = currentItem.name || `annotated-evidence-${previewIndex + 1}.png`;
+        const fileType = blob.type || currentItem.file?.type || 'image/png';
+        const nextFile = new File([blob], fileName, { type: fileType });
+        const nextPreviewUrl = URL.createObjectURL(blob);
+
+        setEditAttachments(prev => prev.map((item, index) => {
+          if (index !== previewIndex) {
+            return item;
+          }
+          if (item.revokeOnCleanup) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+          return {
+            ...item,
+            previewUrl: nextPreviewUrl,
+            file: nextFile,
+            existingUrl: undefined,
+            revokeOnCleanup: true,
+          };
+        }));
+        setAnnotationPreview(nextPreviewUrl);
+        setPreviewModal({ index: previewIndex, mode: 'preview' });
+        setIsDrawing(false);
+      }, currentItem.file?.type || 'image/png');
+    } catch {
+      alert('Failed to save annotation');
+    } finally {
+      if (tempSourceToRevoke) {
+        URL.revokeObjectURL(tempSourceToRevoke);
+      }
+    }
   };
 
   if (loading || !ticket) return (
@@ -167,7 +509,7 @@ export default function TicketDetailPage() {
               <div className="flex gap-2">
                 {ticket.status === 'OPEN' && (
                   <button
-                    onClick={() => { setEditingTicket(true); setEditTicketData(ticket); }}
+                    onClick={startEditingTicket}
                     className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-sm"
                     title="Edit Ticket"
                   >
@@ -264,8 +606,87 @@ export default function TicketDetailPage() {
                   onChange={e => setEditTicketData({ ...editTicketData, description: e.target.value })}
                 />
               </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
+                    <Image className="w-3.5 h-3.5" />
+                    Evidence Photos
+                    <span className="text-slate-600">({editAttachments.length}/3)</span>
+                  </label>
+                  {editAttachments.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-violet-300 border border-violet-500/20 bg-violet-500/10"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Re-upload
+                    </button>
+                  )}
+                  <input
+                    ref={editFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleEditFileChange}
+                  />
+                </div>
+
+                {editAttachments.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {editAttachments.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="relative rounded-xl overflow-hidden"
+                        style={{ aspectRatio: '1', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      >
+                        <img src={item.previewUrl} alt={item.name} className="w-full h-full object-cover" />
+                        <div className="absolute top-1.5 left-1.5 flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewModal({ index, mode: 'preview' })}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                            style={{ background: 'rgba(15,23,42,0.72)' }}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewModal({ index, mode: 'annotate' })}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white"
+                            style={{ background: 'rgba(124,58,237,0.78)' }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEditAttachment(index)}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white"
+                          style={{ background: 'rgba(244,63,94,0.8)' }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <div className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded-full text-[10px] text-white font-semibold"
+                          style={{ background: 'rgba(0,0,0,0.6)' }}>
+                          {item.file ? 'Re-uploaded' : 'Existing'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="w-full py-6 rounded-2xl border border-dashed border-white/10 text-sm text-slate-500 hover:text-slate-300"
+                    style={{ background: 'rgba(255,255,255,0.03)' }}
+                  >
+                    Click to upload evidence photos
+                  </button>
+                )}
+              </div>
               <div className="flex justify-end gap-2 pt-2">
-                <NeuButton size="sm" variant="ghost" onClick={() => setEditingTicket(false)}>Cancel</NeuButton>
+                <NeuButton size="sm" variant="ghost" onClick={stopEditingTicket}>Cancel</NeuButton>
                 <NeuButton size="sm" variant="primary" onClick={handleEditTicket}>Save Changes</NeuButton>
               </div>
             </div>
@@ -478,6 +899,96 @@ export default function TicketDetailPage() {
           </div>
         </LiquidGlassCard>
       </motion.div>
+
+      {previewModal && editAttachments[previewModal.index] && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(2,6,23,0.82)' }}>
+          <div
+            className="w-full max-w-5xl rounded-3xl overflow-hidden border border-white/10"
+            style={{ background: 'rgba(15,23,42,0.96)', boxShadow: '0 24px 80px rgba(0,0,0,0.45)' }}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  {previewModal.mode === 'annotate' ? 'Annotate Evidence Photo' : 'Preview Evidence Photo'}
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">{editAttachments[previewModal.index].name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModal(null)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-slate-300 hover:text-white"
+                style={{ background: 'rgba(255,255,255,0.08)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {previewModal.mode === 'annotate' && (
+              <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-white/10 bg-white/5">
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  Color
+                  <input type="color" value={brushColor} onChange={e => setBrushColor(e.target.value)} className="w-10 h-10 rounded-lg bg-transparent border border-white/10" />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  Brush
+                  <input type="range" min="2" max="16" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} />
+                  <span className="text-xs text-slate-400 w-6">{brushSize}</span>
+                </label>
+                <button type="button" onClick={resetAnnotation} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-200 border border-white/10" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                  <RotateCcw className="w-4 h-4" /> Reset
+                </button>
+                <button type="button" onClick={saveAnnotation} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-white border border-emerald-400/20" style={{ background: 'rgba(16,185,129,0.18)' }}>
+                  <Save className="w-4 h-4" /> Save
+                </button>
+              </div>
+            )}
+
+            <div className="max-h-[75vh] overflow-auto p-5">
+              <div className={`grid gap-5 ${previewModal.mode === 'annotate' ? 'lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]' : ''}`}>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-3">
+                    {previewModal.mode === 'annotate' ? 'Annotate On Preview' : 'Image Preview'}
+                  </p>
+                  <div className="relative mx-auto w-fit max-w-full">
+                    <img
+                      ref={modalImageRef}
+                      src={editAttachments[previewModal.index].previewUrl}
+                      alt={editAttachments[previewModal.index].name}
+                      className="block max-h-[68vh] max-w-full rounded-2xl"
+                    />
+                    {previewModal.mode === 'annotate' && (
+                      <canvas
+                        ref={annotationCanvasRef}
+                        className="absolute inset-0 z-10 rounded-2xl touch-none cursor-crosshair"
+                        onPointerDown={startDrawing}
+                        onPointerMove={draw}
+                        onPointerUp={stopDrawing}
+                        onPointerLeave={stopDrawing}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {previewModal.mode === 'annotate' && (
+                  <div className="lg:min-w-[280px]">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-3">Live Result Preview</p>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <img
+                        src={annotationPreview || editAttachments[previewModal.index].previewUrl}
+                        alt={`Annotated preview ${previewModal.index + 1}`}
+                        className="block max-h-[52vh] w-full rounded-xl object-contain"
+                      />
+                    </div>
+                    <p className="mt-3 text-xs text-slate-400">
+                      Draw on the left image. The saved file will replace the current evidence photo in this ticket.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
