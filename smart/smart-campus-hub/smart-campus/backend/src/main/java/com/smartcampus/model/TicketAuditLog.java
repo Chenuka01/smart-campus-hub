@@ -37,4 +37,68 @@ public class TicketAuditLog {
 
     @Column(columnDefinition = "TEXT")
     private String note;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getTicketId() {
+        return ticketId;
+    }
+
+    public void setTicketId(String ticketId) {
+        this.ticketId = ticketId;
+    }
+
+    public String getChangedByUserId() {
+        return changedByUserId;
+    }
+
+    public void setChangedByUserId(String changedByUserId) {
+        this.changedByUserId = changedByUserId;
+    }
+
+    public String getChangedByUserName() {
+        return changedByUserName;
+    }
+
+    public void setChangedByUserName(String changedByUserName) {
+        this.changedByUserName = changedByUserName;
+    }
+
+    public Ticket.TicketStatus getOldStatus() {
+        return oldStatus;
+    }
+
+    public void setOldStatus(Ticket.TicketStatus oldStatus) {
+        this.oldStatus = oldStatus;
+    }
+
+    public Ticket.TicketStatus getNewStatus() {
+        return newStatus;
+    }
+
+    public void setNewStatus(Ticket.TicketStatus newStatus) {
+        this.newStatus = newStatus;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
+    }
 }

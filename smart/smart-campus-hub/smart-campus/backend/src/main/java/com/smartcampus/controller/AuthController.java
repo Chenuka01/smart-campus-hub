@@ -65,8 +65,8 @@ public class AuthController {
     }
 
     /**
-     * Legacy Google endpoint – accepts pre-parsed user info.
-     * Kept for backwards compatibility.
+     * POST: Handle legacy Google OAuth login.
+     * Receives pre-parsed user info from the client (backward compatibility).
      */
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> googleAuth(@RequestBody Map<String, String> request) {
@@ -78,6 +78,9 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * GET: Retrieve the currently logged-in user's profile information.
+     */
     @GetMapping("/me")
     public ResponseEntity<AuthResponse> getCurrentUser(@AuthenticationPrincipal User user) {
         Set<String> roleStrings = user.getRoles().stream()
@@ -86,15 +89,24 @@ public class AuthController {
         AuthResponse response = new AuthResponse(
                 null, user.getId(), user.getName(), user.getEmail(),
                 user.getAvatarUrl(), roleStrings);
+    /**
+     * PUT: Update user profile details (Name/Email).
+     */
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * GET: Fetch all registered users (Admin only).
+     */
     @PutMapping("/profile")
     public ResponseEntity<AuthResponse> updateProfile(@AuthenticationPrincipal User user, @RequestBody Map<String, String> request) {
         AuthResponse response = authService.updateProfile(user.getId(), request.get("name"), request.get("email"));
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * PUT: Modern Role Management - Update roles for a specific user ID (Super Admin only).
+     */
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER', 'TECHNICIAN')")
     public ResponseEntity<List<User>> getAllUsers() {

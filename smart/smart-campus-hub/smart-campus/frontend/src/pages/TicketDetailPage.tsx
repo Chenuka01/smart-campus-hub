@@ -508,6 +508,65 @@ export default function TicketDetailPage() {
     refreshAnnotationPreview();
   };
 
+  const saveAnnotation = async () => {
+    if (!previewModal) {
+      return;
+    }
+
+    const imageSource = modalImageRef.current?.src;
+    const canvas = annotationCanvasRef.current;
+    if (!imageSource || !canvas) {
+      return;
+    }
+
+    try {
+      const { source, revoke } = await getExportImageSource(editAttachments[previewModal.index]);
+      const image = await loadImageElement(source);
+      const blob = await exportAnnotatedImage(image, canvas);
+      if (revoke) {
+        URL.revokeObjectURL(source);
+      }
+
+      if (!blob) {
+        throw new Error('Failed to export annotated image');
+      }
+
+      if (blob.size > MAX_IMAGE_SIZE_BYTES) {
+        alert(`Annotated image is too large. Each evidence image must be ${MAX_IMAGE_SIZE_LABEL} or smaller.`);
+        return;
+      }
+
+      const originalFile = editAttachments[previewModal.index];
+      const nextName = getAnnotatedFileName(originalFile.name);
+      const nextFile = new File([blob], nextName, { type: ANNOTATED_IMAGE_TYPE });
+      const nextPreview = URL.createObjectURL(blob);
+
+      setEditAttachments(prev => prev.map((item, index) => {
+        if (index !== previewModal.index) {
+          return item;
+        }
+
+        if (item.revokeOnCleanup) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+
+        return {
+          ...item,
+          name: nextName,
+          previewUrl: nextPreview,
+          file: nextFile,
+          revokeOnCleanup: true,
+        };
+      }));
+
+      setPreviewModal({ index: previewModal.index, mode: 'preview' });
+      setAnnotationPreview(nextPreview);
+      setIsDrawing(false);
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to save annotation'));
+    }
+  };
+
   const resetAnnotation = () => {
     const canvas = annotationCanvasRef.current;
     const context = canvas?.getContext('2d');

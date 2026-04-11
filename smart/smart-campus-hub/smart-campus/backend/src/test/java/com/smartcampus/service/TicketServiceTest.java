@@ -145,7 +145,7 @@ class TicketServiceTest {
         when(ticketRepository.findById("ticket-1")).thenReturn(Optional.of(ticket));
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Ticket result = ticketService.assignTicket("ticket-1", "tech-1", "John Technician");
+        Ticket result = ticketService.assignTicket("ticket-1", "tech-1", "John Technician", testUser);
 
         assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
         assertThat(result.getAssignedTo()).isEqualTo("tech-1");
