@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/facilities")
+@RequestMapping("/api/facilities")//get all facilities
 public class FacilityController {
 
     private final FacilityService facilityService;
@@ -27,12 +27,12 @@ public class FacilityController {
         return ResponseEntity.ok(facilityService.getAllFacilities());
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id}")//get facility by id
     public ResponseEntity<Facility> getFacilityById(@PathVariable String id) {
         return ResponseEntity.ok(facilityService.getFacilityById(id));
     }
 
-    @GetMapping("/search")
+    @GetMapping("/search")//search facilities by type, location, capacity, status
     public ResponseEntity<List<Facility>> searchFacilities(
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String location,
@@ -41,7 +41,7 @@ public class FacilityController {
         return ResponseEntity.ok(facilityService.searchFacilities(type, location, minCapacity, status));
     }
 
-    @PostMapping
+    @PostMapping//create a new facility
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Facility> createFacility(
             @RequestBody Facility facility,
@@ -50,7 +50,7 @@ public class FacilityController {
         return ResponseEntity.status(HttpStatus.CREATED).body(facilityService.createFacility(facility));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{id}")//update facility
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<Facility> updateFacility(
             @PathVariable String id,
@@ -58,7 +58,7 @@ public class FacilityController {
         return ResponseEntity.ok(facilityService.updateFacility(id, facility));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id}")//delete facility
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse> deleteFacility(@PathVariable String id) {
         facilityService.deleteFacility(id);
