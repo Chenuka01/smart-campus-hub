@@ -4,6 +4,7 @@ import com.smartcampus.exception.BadRequestException;
 import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -19,19 +20,23 @@ import java.util.Map;
 public class PasswordResetService {
 
     private final UserRepository userRepository;
-    private final JavaMailSender mailSender;
     private final PasswordEncoder passwordEncoder;
     private final String fromEmail;
+    private final String mailHost;
+
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
     
     // In-memory storage for OTPs (in production, use Redis or Database)
     private final Map<String, OtpData> otpStore = new HashMap<>();
 
-    public PasswordResetService(UserRepository userRepository, JavaMailSender mailSender, PasswordEncoder passwordEncoder,
-            @Value("${spring.mail.username}") String fromEmail) {
+    public PasswordResetService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+            @Value("${spring.mail.username:}") String fromEmail,
+            @Value("${spring.mail.host:}") String mailHost) {
         this.userRepository = userRepository;
-        this.mailSender = mailSender;
         this.passwordEncoder = passwordEncoder;
         this.fromEmail = fromEmail;
+        this.mailHost = mailHost;
     }
 
     public void requestPasswordReset(String email) {
@@ -100,6 +105,11 @@ public class PasswordResetService {
     }
 
     private void sendOtpEmail(String email, String name, String otp) {
+        if (mailHost == null || mailHost.isEmpty() || mailSender == null) {
+            System.err.println("[SKIPPED] Password reset email skipped. Mail host or JavaMailSender not configured.");
+            System.out.println("[DEBUG] OTP for " + email + " is: " + otp);
+            return;
+        }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);

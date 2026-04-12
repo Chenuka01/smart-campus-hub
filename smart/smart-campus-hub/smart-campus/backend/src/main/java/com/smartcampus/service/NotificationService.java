@@ -6,6 +6,8 @@ import com.smartcampus.model.User;
 import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.UserRepository;
 import com.smartcampus.dto.NotificationPreferencesRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.mail.SimpleMailMessage;
@@ -30,13 +32,20 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final JavaMailSender mailSender;
+    
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
 
-    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository, SimpMessagingTemplate messagingTemplate, JavaMailSender mailSender) {
+    @Value("${spring.mail.from:noreply@smartcampus.edu}")
+    private String fromEmail;
+
+    @Value("${spring.mail.host:}")
+    private String mailHost;
+
+    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository, SimpMessagingTemplate messagingTemplate) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
-        this.mailSender = mailSender;
     }
 
     public Notification createNotification(@NonNull String userId, String title, String message,
@@ -88,13 +97,15 @@ public class NotificationService {
 
             // 1. Check Email Preferences
             if (user.isEmailNotificationsEnabled()) {
-                if (isWithinDndWindow(user)) {
+                if (mailHost == null || mailHost.isEmpty() || mailSender == null) {
+                    System.out.println("[SKIPPED] [EMAIL SKIPPED] Mail host or JavaMailSender not configured.");
+                } else if (isWithinDndWindow(user)) {
                     System.out.println("[SKIPPED] [EMAIL SKIPPED for " + targetEmail + "] (DND Mode active from " + user.getDndStartTime() + " to " + user.getDndEndTime() + ")");
                 } else {
                     System.out.println("[EMAIL] [SENDING REAL EMAIL TO: " + targetEmail + "]");
                     try {
                         SimpleMailMessage mailMessage = new SimpleMailMessage();
-                        mailMessage.setFrom("chenukamudannayake@gmail.com");
+                        mailMessage.setFrom(fromEmail);
                         mailMessage.setTo(targetEmail);
                         mailMessage.setSubject("Smart Campus Hub: " + title);
                         mailMessage.setText("Hello " + user.getName() + ",\n\n" + message + "\n\nRegards,\nSmart Campus Operations Hub");
