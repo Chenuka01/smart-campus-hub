@@ -12,7 +12,8 @@ import org.springframework.test.context.TestPropertySource;
     "spring.datasource.password=",
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-    "spring.sql.init.mode=never"
+    "spring.sql.init.mode=never",
+    "app.data-initializer.enabled=false"
 })
 class SmartCampusApplicationTests {
 

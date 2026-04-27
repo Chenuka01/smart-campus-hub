@@ -39,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
         "spring.sql.init.mode=never",
+        "app.data-initializer.enabled=false",
         "app.upload.dir=target/test-uploads"
 })
 @DisplayName("Ticket Controller Integration Tests")
@@ -144,7 +145,7 @@ class TicketControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("POST /api/tickets/simple auto-assigns matching technician and moves ticket to IN_PROGRESS")
+    @DisplayName("POST /api/tickets/simple auto-assigns matching technician and keeps ticket OPEN")
     void createTicketSimple_autoAssignsTechnicianByCategory() throws Exception {
         TicketRequest request = new TicketRequest();
         request.setTitle("Lab PC not booting");
@@ -161,7 +162,29 @@ class TicketControllerIntegrationTest {
                 .andExpect(jsonPath("$.category").value("IT Equipment"))
                 .andExpect(jsonPath("$.assignedTo").value(technicianUser.getId()))
                 .andExpect(jsonPath("$.assignedToName").value("Technician User"))
-                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+                .andExpect(jsonPath("$.status").value("OPEN"));
+    }
+
+    @Test
+    @DisplayName("POST /api/tickets/simple rejects invalid payload with field errors")
+    void createTicketSimple_invalidPayload_returnsValidationErrors() throws Exception {
+        TicketRequest request = new TicketRequest();
+        request.setTitle("Bad");
+        request.setLocation("");
+        request.setDescription("Too short");
+        request.setContactEmail("not-an-email");
+        request.setContactPhone("123");
+
+        mockMvc.perform(post("/api/tickets/simple")
+                        .with(authFor(testUser))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Title must be between 5 and 120 characters"))
+                .andExpect(jsonPath("$.location").value("Location is required"))
+                .andExpect(jsonPath("$.description").value("Description must be between 20 and 2000 characters"))
+                .andExpect(jsonPath("$.contactEmail").value("Invalid email format"))
+                .andExpect(jsonPath("$.contactPhone").value("Phone number must be exactly 10 digits"));
     }
 
     private RequestPostProcessor authFor(User user) {

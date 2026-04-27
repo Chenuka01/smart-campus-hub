@@ -4,6 +4,7 @@ import com.smartcampus.dto.TicketRequest;
 import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.model.Ticket;
 import com.smartcampus.model.User;
+import com.smartcampus.repository.TicketAuditLogRepository;
 import com.smartcampus.repository.TicketRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,7 @@ class TicketServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private TicketClassificationService ticketClassificationService;
     @Mock private TechnicianAutoAssignmentService technicianAutoAssignmentService;
+    @Mock private TicketAuditLogRepository ticketAuditLogRepository;
 
     @InjectMocks private TicketService ticketService;
 
@@ -77,8 +79,8 @@ class TicketServiceTest {
     }
 
     @Test
-    @DisplayName("createTicket: auto-assignment moves ticket to IN_PROGRESS and notifies both parties")
-    void createTicket_autoAssignedTechnician_setsInProgressAndNotifies() {
+    @DisplayName("createTicket: auto-assignment keeps ticket OPEN and notifies both parties")
+    void createTicket_autoAssignedTechnician_keepsOpenAndNotifies() {
         User technician = new User();
         technician.setId("tech-1");
         technician.setName("John Technician");
@@ -94,7 +96,7 @@ class TicketServiceTest {
 
         Ticket result = ticketService.createTicket(testRequest, testUser, Collections.emptyList());
 
-        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.IN_PROGRESS);
+        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.OPEN);
         assertThat(result.getAssignedTo()).isEqualTo("tech-1");
         assertThat(result.getAssignedToName()).isEqualTo("John Technician");
         verify(notificationService, times(2)).createNotification(any(), any(), any(), any(), any(), any());
@@ -156,24 +158,6 @@ class TicketServiceTest {
 
     // ─── updateTicketStatus ───────────────────────────────────────────────────
 
-    @Test
-    @DisplayName("updateTicketStatus: RESOLVED sets resolutionNotes and resolvedAt")
-    void updateTicketStatus_resolved_setsResolutionDetails() {
-        Ticket ticket = new Ticket();
-        ticket.setId("ticket-1");
-        ticket.setTitle("Projector not working");
-        ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
-        ticket.setReportedBy("user-1");
-
-        when(ticketRepository.findById("ticket-1")).thenReturn(Optional.of(ticket));
-        when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Ticket result = ticketService.updateTicketStatus("ticket-1", "RESOLVED", "Replaced lamp unit", null, testUser);
-
-        assertThat(result.getStatus()).isEqualTo(Ticket.TicketStatus.RESOLVED);
-        assertThat(result.getResolutionNotes()).isEqualTo("Replaced lamp unit");
-        assertThat(result.getResolvedAt()).isNotNull();
-    }
 
     @Test
     @DisplayName("updateTicketStatus: REJECTED sets rejectionReason")

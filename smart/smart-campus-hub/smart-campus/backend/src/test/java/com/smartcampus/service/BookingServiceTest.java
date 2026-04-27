@@ -231,8 +231,8 @@ class BookingServiceTest {
         user.setId("user-1");
         user.setName("Test User");
         assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", user, "Change of plans"))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("already cancelled");
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("already cancelled");
     }
 
     @Test
@@ -249,8 +249,8 @@ class BookingServiceTest {
         user.setId("user-1");
         user.setName("Test User");
         assertThatThrownBy(() -> bookingService.cancelBooking("booking-1", user, "Change of plans"))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("rejected");
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("rejected");
     }
 
     // ─── getBookingById ───────────────────────────────────────────────────────
@@ -261,7 +261,7 @@ class BookingServiceTest {
         when(bookingRepository.findById("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> bookingService.getBookingById("unknown"))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Booking not found");
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("Booking not found");
     }
 }
